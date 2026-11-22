@@ -58,7 +58,7 @@ jobs:
           hits=[r for r in rows if r.get('ref')==ref] or [r for r in rows if r.get('description')==msg]
           if not hits: sys.exit()
           r=hits[0]
-          if r.get('status','').upper()=='COMPLETE' and r.get('publicScore'):
+          if 'COMPLETE' in r.get('status','').upper() and r.get('publicScore'):
               print(r['ref'],r['publicScore'],r['status'],sep='|')
           PY
           )
