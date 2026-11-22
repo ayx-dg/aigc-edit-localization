@@ -1,3 +1,4 @@
 {"ref": "58710941", "score": 0.92209, "status": "SubmissionStatus.COMPLETE", "message": "Candidate: drop components <100px", "sha256": "c152e95040947623e2a9c2fc57825a25176e58f8683d081ef0782d081aca2acf", "time": "2026-11-22T08:11:28.236656+00:00"}
 {"ref": "58711343", "score": 0.92126, "status": "SubmissionStatus.COMPLETE", "message": "Postprocess: fill all holes", "sha256": "86f33defb80e328efe72274a727e33181b808215311465957d2b48fd02eb80bd", "time": "2026-11-22T08:20:37.217627+00:00"}
 {"ref": "58711404", "score": 0.92114, "status": "SubmissionStatus.COMPLETE", "message": "Postprocess: drop components <1000px", "sha256": "3d8c84cb471a8b6b17b00c34cd9652a97eae0d07c9850bb3c720c1bfd86ed25f", "time": "2026-11-22T08:22:03.295917+00:00"}
+{"ref": "58711451", "score": 0.92187, "status": "SubmissionStatus.COMPLETE", "message": "Postprocess: 3x3 closing", "sha256": "8345a5bb4cb0928c4756f1fdaeff11627921f3a0dcd79c0b4be018332f1ac6ae", "time": "2026-11-22T08:23:17.184461+00:00"}
