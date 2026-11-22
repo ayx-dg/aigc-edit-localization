@@ -44,8 +44,14 @@ jobs:
         run: |
           set -euo pipefail
           MESSAGE=$(python -c "import json;print(json.load(open('submissions/candidates/active.json'))['message'])")
+          set +e
           OUT=$(kaggle competitions submit -c "$SLUG" -f submissions/candidates/active.csv -m "$MESSAGE" 2>&1)
+          CODE=$?
+          set -e
           echo "$OUT"
+          printf '%s\n' "$OUT" > reports/candidate_submit_output.txt
+          echo "exit_code=$CODE" >> reports/candidate_submit_output.txt
+          if [ $CODE -ne 0 ]; then exit $CODE; fi
           REF=$(echo "$OUT" | grep -oE '[0-9]{6,}' | tail -1 || true)
           echo "ref=$REF"
           for i in $(seq 1 40); do
@@ -94,4 +100,22 @@ jobs:
           if git diff --cached --quiet; then echo "no result changes"; else
             git commit -m "Record Kaggle candidate score $ROW [skip ci]"
             git push
+          fi
+
+      - name: Commit submit diagnostic
+        if: always()
+        run: |
+          if [ ! -f reports/candidate_submit_output.txt ]; then
+            echo "no diagnostic to commit"
+            exit 0
+          fi
+          git config user.name "candidate-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add reports/candidate_submit_output.txt
+          if git diff --cached --quiet; then
+            echo "no diagnostic changes"
+          else
+            git pull --rebase origin main || true
+            git commit -m "Record Kaggle candidate submit diagnostic [skip ci]" || true
+            git push || true
           fi
