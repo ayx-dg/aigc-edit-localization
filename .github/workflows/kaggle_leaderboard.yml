@@ -2,6 +2,7 @@ name: Kaggle leaderboard snapshot
 
 # Read-only diagnostic: records the private competition leaderboard and our own
 # submission history using the repository's existing Kaggle credentials.
+# Refreshed after candidate-submission pipeline checks.
 # Triggered manually or when this workflow file changes.
 on:
   push:
