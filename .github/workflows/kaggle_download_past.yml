@@ -1,0 +1,57 @@
+name: Download past Kaggle submissions
+
+# One-off diagnostic: fetch our own previously scored submission files so they
+# can be ensembled offline. Uses the repository's existing Kaggle credentials.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/kaggle_download_past.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Kaggle CLI
+        run: python -m pip install --quiet kaggle six
+
+      - name: Download selected past submissions
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p submissions/past
+          for ref in 58415875 58369543 58373393 58346197 58474337 58336311; do
+            rm -rf /tmp/kdl && mkdir -p /tmp/kdl
+            kaggle competitions submission-download "$ref" -p /tmp/kdl --force
+            f=$(find /tmp/kdl -type f -name '*.csv' | head -1)
+            if [ -z "$f" ]; then echo "no csv downloaded for $ref"; exit 1; fi
+            cp "$f" "submissions/past/ref_${ref}.csv"
+            echo "downloaded $ref -> $(wc -c < "submissions/past/ref_${ref}.csv") bytes"
+          done
+
+      - name: Commit downloaded submissions
+        run: |
+          git config user.name "past-submission-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add submissions/past
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "Archive past high-scoring Kaggle submissions [skip ci]"
+            git push
+          fi
