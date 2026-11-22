@@ -25,6 +25,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Kaggle CLI
+        continue-on-error: true
         run: python -m pip install --quiet kaggle six
 
       - name: Download selected past submissions
@@ -60,6 +61,7 @@ jobs:
           git config user.name "past-submission-bot"
           git config user.email "bot@users.noreply.github.com"
           mkdir -p submissions/past reports
+          touch reports/past_download.log
           echo "download step reached" > reports/past_download_status.txt
           git add submissions/past reports/past_download.log reports/past_download_status.txt
           if git diff --cached --quiet; then
