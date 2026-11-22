@@ -1,0 +1,97 @@
+name: Kaggle candidate evaluation
+
+# Submits submissions/candidates/active.csv to Kaggle, waits for the public
+# score, and commits the result. Triggered only when the active candidate or
+# its metadata changes, so it never interferes with the canonical handoff.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'submissions/candidates/active.csv'
+      - 'submissions/candidates/active.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Kaggle CLI
+        run: python -m pip install --quiet kaggle six
+
+      - name: Validate candidate
+        run: python scripts/submit_kaggle.py --dry-run --submission submissions/candidates/active.csv
+
+      - name: Submit and wait for public score
+        id: result
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          SLUG: ai-edited-image-localization-cs-5489
+        run: |
+          set -euo pipefail
+          MESSAGE=$(python -c "import json;print(json.load(open('submissions/candidates/active.json'))['message'])")
+          OUT=$(kaggle competitions submit -c "$SLUG" -f submissions/candidates/active.csv -m "$MESSAGE" 2>&1)
+          echo "$OUT"
+          REF=$(echo "$OUT" | grep -oE '[0-9]{6,}' | tail -1 || true)
+          echo "ref=$REF"
+          for i in $(seq 1 40); do
+            sleep 45
+            kaggle competitions submissions -c "$SLUG" --csv --page-size 200 > /tmp/subs.csv
+            ROW=$(python - "$REF" "$MESSAGE" <<'PY'
+          import csv,sys
+          ref,msg=sys.argv[1],sys.argv[2]
+          rows=list(csv.DictReader(open('/tmp/subs.csv')))
+          hits=[r for r in rows if r.get('ref')==ref] or [r for r in rows if r.get('description')==msg]
+          if not hits: sys.exit()
+          r=hits[0]
+          if r.get('status','').upper()=='COMPLETE' and r.get('publicScore'):
+              print(r['ref'],r['publicScore'],r['status'],sep='|')
+          PY
+          )
+            if [ -n "$ROW" ]; then
+              echo "score_row=$ROW"
+              echo "row=$ROW" >> "$GITHUB_OUTPUT"
+              break
+            fi
+            echo "waiting for score ($i/40)"
+          done
+          if [ -z "${ROW:-}" ]; then echo "::error::no score received"; exit 1; fi
+
+      - name: Record result
+        env:
+          ROW: ${{ steps.result.outputs.row }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          python - "$ROW" "$MESSAGE" <<'PY'
+          import json,sys,hashlib,datetime
+          ref,score,status=sys.argv[1].split('|')
+          msg=sys.argv[2]
+          path='submissions/candidates/active.csv'
+          digest=hashlib.sha256(open(path,'rb').read()).hexdigest()
+          rec={'ref':ref,'score':float(score),'status':status,'message':msg,'sha256':digest,
+               'time':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          with open('reports/candidate_history.jsonl','a') as f: f.write(json.dumps(rec)+'\n')
+          print('recorded',rec)
+          PY
+          git config user.name "candidate-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add reports/candidate_history.jsonl
+          git pull --rebase origin main || true
+          if git diff --cached --quiet; then echo "no result changes"; else
+            git commit -m "Record Kaggle candidate score $ROW [skip ci]"
+            git push
+          fi
