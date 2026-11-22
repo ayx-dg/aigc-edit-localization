@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Large experiment artifacts (never commit)
+*.pt
+*.pth
+*.npz
+*.npy
+*.webp
+*.png
+!data/error_images/*.png
+patches/
+cache/
+out*/
+pipeline_results/
+
+# LaTeX intermediates
+*.aux
+*.log
+*.out
+*.toc
+report/report.log
+report/report.aux
+report/report.out
+
+# Local secrets / editors
+kaggle.json
+.env
+.vscode/
+.idea/
+.DS_Store

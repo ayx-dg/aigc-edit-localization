@@ -1,0 +1,57 @@
+{
+  "final": {
+    "best_epoch": 9,
+    "best_score": 0.6689863941277787,
+    "last_score": 0.666721,
+    "score_drop_from_best": -0.0022649999999999615,
+    "val_loss_first": 0.716379,
+    "val_loss_last": 0.474019,
+    "train_loss_first": 0.796415,
+    "train_loss_last": 0.249337,
+    "time_sec": 23392.7,
+    "seed": 42,
+    "threshold": 0.20000000000000004
+  },
+  "confusion": {
+    "threshold": 0.20000000000000004,
+    "counts": {
+      "tp": 13178024,
+      "fp": 3658621,
+      "fn": 2126852,
+      "tn": 112108503
+    },
+    "precision": 0.782698928438534,
+    "recall": 0.8610343527121683,
+    "specificity": 0.9683967185709822,
+    "false_positive_rate": 0.031603281429017804,
+    "normalized": [
+      [
+        0.9683967185709822,
+        0.03160328142901779
+      ],
+      [
+        0.13896564728783167,
+        0.8610343527121683
+      ]
+    ],
+    "row_true": [
+      0,
+      1
+    ],
+    "col_pred": [
+      0,
+      1
+    ]
+  },
+  "kaggle_submissions": {
+    "v1 global": 0.65764,
+    "v2 global SW": 0.61291,
+    "v3 patch native": 0.77279,
+    "v4 ensemble": 0.80113,
+    "v5 weighted": 0.8087
+  },
+  "ep20": {
+    "ep20_score": 0.5445559528422921,
+    "baseline_score": 0.5498449760361119
+  }
+}

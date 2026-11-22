@@ -1,0 +1,10 @@
+{
+  "validation_sweep": {
+    "global": {"threshold": 0.16, "score": 0.6766, "miou": 0.6356, "mrecall": 0.7722},
+    "native": {"threshold": 0.50, "score": 0.4765, "miou": 0.3613, "mrecall": 0.7455},
+    "average": {"threshold": 0.50, "score": 0.6939, "miou": 0.6772, "mrecall": 0.7328}
+  },
+  "ensemble_sweep": {
+    "global_plus_patch_native": {"threshold": 0.48, "score": 0.7923, "miou": 0.7570, "mrecall": 0.8745, "microIoU": 0.8438}
+  }
+}

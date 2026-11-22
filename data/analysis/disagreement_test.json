@@ -1,0 +1,159 @@
+{
+  "old_file": "/home/a/Downloads/submission (2).csv",
+  "new_file": "/home/a/unet/pipeline_results/ensemble_test/submission_w04_thr059.csv",
+  "mean_iou": 0.7851292911245151,
+  "median_iou": 0.8976336863040881,
+  "mean_old_frac": 0.11386337735982638,
+  "mean_new_frac": 0.11278274842260569,
+  "mean_new_only": 0.010216026011360816,
+  "mean_old_only": 0.011296654948581503,
+  "worst": [
+    {
+      "id": 5006,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 0.0,
+      "old_frac": 0.001084375,
+      "new_frac": 0.012285416666666667,
+      "both_frac": 0.0,
+      "new_only_frac": 0.012285416666666667,
+      "old_only_frac": 0.001084375
+    },
+    {
+      "id": 5016,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 1.0,
+      "old_frac": 0.0025499546879410497,
+      "new_frac": 0.0,
+      "both_frac": 0.0,
+      "new_only_frac": 0.0,
+      "old_only_frac": 0.0025499546879410497
+    },
+    {
+      "id": 5050,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 0.0,
+      "old_frac": 0.0028240617513973915,
+      "new_frac": 0.02290746162718481,
+      "both_frac": 0.0,
+      "new_only_frac": 0.02290746162718481,
+      "old_only_frac": 0.0028240617513973915
+    },
+    {
+      "id": 5062,
+      "iou": 0.0,
+      "recall_vs_old": 1.0,
+      "precision_vs_old": 0.0,
+      "old_frac": 0.0,
+      "new_frac": 0.005179535076795351,
+      "both_frac": 0.0,
+      "new_only_frac": 0.005179535076795351,
+      "old_only_frac": 0.0
+    },
+    {
+      "id": 5077,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 1.0,
+      "old_frac": 0.008625925925925926,
+      "new_frac": 0.0,
+      "both_frac": 0.0,
+      "new_only_frac": 0.0,
+      "old_only_frac": 0.008625925925925926
+    },
+    {
+      "id": 5092,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 1.0,
+      "old_frac": 0.0011317708333333334,
+      "new_frac": 0.0,
+      "both_frac": 0.0,
+      "new_only_frac": 0.0,
+      "old_only_frac": 0.0011317708333333334
+    },
+    {
+      "id": 5322,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 1.0,
+      "old_frac": 0.003463541666666667,
+      "new_frac": 0.0,
+      "both_frac": 0.0,
+      "new_only_frac": 0.0,
+      "old_only_frac": 0.003463541666666667
+    },
+    {
+      "id": 5335,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 1.0,
+      "old_frac": 0.013818874560375146,
+      "new_frac": 0.0,
+      "both_frac": 0.0,
+      "new_only_frac": 0.0,
+      "old_only_frac": 0.013818874560375146
+    },
+    {
+      "id": 5336,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 1.0,
+      "old_frac": 0.0010052083333333334,
+      "new_frac": 0.0,
+      "both_frac": 0.0,
+      "new_only_frac": 0.0,
+      "old_only_frac": 0.0010052083333333334
+    },
+    {
+      "id": 5394,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 0.0,
+      "old_frac": 0.0005410446599281306,
+      "new_frac": 0.01506050358412894,
+      "both_frac": 0.0,
+      "new_only_frac": 0.01506050358412894,
+      "old_only_frac": 0.0005410446599281306
+    },
+    {
+      "id": 5421,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 0.0,
+      "old_frac": 0.00020653209868823697,
+      "new_frac": 0.07968633648057935,
+      "both_frac": 0.0,
+      "new_only_frac": 0.07968633648057935,
+      "old_only_frac": 0.00020653209868823697
+    },
+    {
+      "id": 5436,
+      "iou": 0.0,
+      "recall_vs_old": 0.0,
+      "precision_vs_old": 0.0,
+      "old_frac": 0.0028164881306619056,
+      "new_frac": 0.0005899540435098856,
+      "both_frac": 0.0,
+      "new_only_frac": 0.0005899540435098856,
+      "old_only_frac": 0.0028164881306619056
+    }
+  ],
+  "visualised": [
+    5006,
+    5050,
+    5062,
+    5283,
+    5208
+  ],
+  "components": {
+    "mean_old": 9.504,
+    "mean_new": 2.964,
+    "median_size_old": 1640.5,
+    "median_size_new": 3737.75,
+    "mean_tiny_old": 6.698,
+    "mean_tiny_new": 0.908
+  }
+}
