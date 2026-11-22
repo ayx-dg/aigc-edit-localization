@@ -1,9 +1,10 @@
 name: Submit to Kaggle
 
-# A push to main triggers a Kaggle submission ONLY when the fixed-name file
-# submissions/best_submission.csv changes. Other pushes do not submit.
-# Kaggle credentials are repository secrets: KAGGLE_API_TOKEN (preferred), or
-# KAGGLE_USERNAME + KAGGLE_KEY.
+# The Kaggle entry is updated ONLY when a proposed CSV beats our historical
+# best public Score. The baseline is read from our own Kaggle submission
+# history at runtime. A push triggers this workflow only when the fixed-name
+# file submissions/best_submission.csv changes; the score sidecar must be
+# committed together with it (its sha256 must match the CSV).
 on:
   push:
     branches: [main]
@@ -15,13 +16,23 @@ on:
         description: 'Submission CSV path (relative to repository root)'
         required: false
         default: 'submissions/best_submission.csv'
+      score:
+        description: 'Candidate public Score override (for dry-run testing)'
+        required: false
+        default: ''
       message:
         description: 'Kaggle submission message'
         required: false
         default: 'SparseViT v5 weighted ensemble (w_global=0.4, w_patch=0.6), thr=0.59'
+      dry_run:
+        description: 'Dry run: decide but never submit or modify files'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   submit:
@@ -35,13 +46,60 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Kaggle CLI
+        run: python -m pip install --quiet kaggle
+
+      - name: Resolve run mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "dry=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dry=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Compares the candidate Score with the best public Score in our own
+      # Kaggle submission history (floor 0.92213). Sets decision=SUBMIT|KEEP.
+      - name: Gate against historical best
+        id: gate
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          SUBMISSION: ${{ github.event.inputs.submission || 'submissions/best_submission.csv' }}
+          SCORE: ${{ github.event.inputs.score || '' }}
+        run: |
+          ARGS="--submission $SUBMISSION --github-output $GITHUB_OUTPUT"
+          if [ -n "$SCORE" ]; then ARGS="$ARGS --score $SCORE"; fi
+          if [ "${{ steps.mode.outputs.dry }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          python scripts/gate_best_submission.py $ARGS
+
+      # A non-improving candidate must not become the competition entry.
+      # Restore the archived best CSV and its score sidecar. A commit made
+      # with GITHUB_TOKEN does not re-trigger this workflow.
+      - name: Restore historical best
+        if: steps.gate.outputs.decision == 'KEEP' && steps.mode.outputs.dry != 'true'
+        run: |
+          git config user.name martin
+          git config user.email ""
+          git add submissions/best_submission.csv submissions/best_submission.score.json
+          if git diff --cached --quiet; then
+            echo "already at historical best; nothing to restore"
+          else
+            git commit -m "Keep historical best submission (candidate not an improvement)"
+            git push
+          fi
+          echo "::notice::Candidate Score ${{ steps.gate.outputs.candidate_score }} did not beat historical best ${{ steps.gate.outputs.kaggle_best }}; no Kaggle submission sent."
+
       - name: Validate submission CSV
+        if: steps.gate.outputs.decision == 'SUBMIT' && steps.mode.outputs.dry != 'true'
         env:
           SUBMISSION: ${{ github.event.inputs.submission || 'submissions/best_submission.csv' }}
         run: python scripts/submit_kaggle.py --dry-run --submission "$SUBMISSION"
 
       - name: Check Kaggle credentials
         id: creds
+        if: steps.gate.outputs.decision == 'SUBMIT' && steps.mode.outputs.dry != 'true'
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
@@ -54,12 +112,8 @@ jobs:
             echo "::warning::No Kaggle credentials secret is set; skipping submission."
           fi
 
-      - name: Install Kaggle CLI
-        if: steps.creds.outputs.available == 'true'
-        run: python -m pip install --quiet kaggle
-
       - name: Submit to Kaggle
-        if: steps.creds.outputs.available == 'true'
+        if: steps.gate.outputs.decision == 'SUBMIT' && steps.mode.outputs.dry != 'true' && steps.creds.outputs.available == 'true'
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}

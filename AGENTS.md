@@ -171,6 +171,16 @@ push 不会启动它。贡献者不需要接触任何凭据。
 ## 3. 自动化说明
 
 `.github/workflows/kaggle_submit.yml` 仅在 push 包含
-`submissions/best_submission.csv` 变更时运行（或手动 dispatch）。它先校验 CSV 格式，
-再由仓库维护者配置的凭据完成交接；凭据缺失时只告警并跳过。贡献者无需配置凭据，
-也不要在 PR 中加入任何密钥或 token。
+`submissions/best_submission.csv` 变更时运行（或手动 dispatch）。**不是每个新提交都直接
+当成最终成绩**：`scripts/gate_best_submission.py` 在运行时查询本人在 Kaggle 的提交历史
+（离线兜底 `0.92213`，ref `58415875`）作为历史最高，与候选 sidecar
+`submissions/best_submission.score.json` 中的成绩比较：
+
+- 候选严格高于历史最高 → 归档该 CSV、更新 `submissions/score_registry.json`，再提交 Kaggle。
+- 候选不高于历史最高 → 不提交；按 registry 把固定 CSV 回退为归档的最高分 CSV，并重写
+  sidecar，保证仓库与竞赛成绩一致。
+
+sidecar 的 `sha256` 必须与 CSV 相符，否则闸门直接失败（fail closed）。手动 dry-run 可无副作用
+验证两条分支：`gh workflow run kaggle_submit.yml -f dry_run=true -f score=0.99`（SUBMIT）与
+`-f score=0.50`（KEEP），再用 `gh run view --log` 看 `decision=`。凭据只由维护者配置；贡献者
+无需接触，也不要在 PR 中加入任何密钥或 token。

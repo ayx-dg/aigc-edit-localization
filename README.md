@@ -154,9 +154,34 @@ No Kaggle account or repository write access is needed to contribute:
 4. Open a pull request describing the change and the validation Score.
 
 After review and merge, the maintainer copies the chosen candidate to
-`submissions/best_submission.csv`. The repository's automation step treats that
-fixed filename as the handoff point; other pushes do not start it. See
-`AGENTS.md` for the exact collaboration rules.
+`submissions/best_submission.csv` **and** updates the companion
+`submissions/best_submission.score.json` with its public Score and the CSV's
+`sha256`. The fixed CSV name is the handoff point; other pushes do not start
+the automation.
+
+### Historical-best gate
+
+The action never treats a new commit as the final score unconditionally. Before
+submitting, `scripts/gate_best_submission.py` reads our own Kaggle submission
+history at runtime (with `0.92213`, ref `58415875`, as the offline floor) and
+compares it with the candidate Score from the sidecar:
+
+- **candidate > historical best** → the CSV is archived, the score registry is
+  updated, and the CSV is submitted to Kaggle.
+- **candidate ≤ historical best** → nothing is submitted; the action restores
+  `best_submission.csv` from the archived best (`submissions/score_registry.json`)
+  and rewrites the sidecar, so the repository keeps the historical best entry.
+
+The sidecar `sha256` must match the CSV; a mismatch fails closed. A manual run
+can simulate either branch without side effects:
+
+```bash
+gh workflow run kaggle_submit.yml -f dry_run=true -f score=0.99
+gh workflow run kaggle_submit.yml -f dry_run=true -f score=0.50
+gh run view --log    # inspect decision=SUBMIT / decision=KEEP
+```
+
+See `AGENTS.md` for the exact collaboration rules.
 
 ## Key format facts
 

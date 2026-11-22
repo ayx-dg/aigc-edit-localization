@@ -1,0 +1,16 @@
+{
+  "best_score": 0.92213,
+  "note": "Archive of public Scores mapped to the CSV that achieved them. The GitHub Action queries Kaggle submission history at runtime and uses this file only to find the CSV to restore when a candidate is not an improvement.",
+  "archive": [
+    {
+      "score": 0.92213,
+      "file": "historical_best_0.92213.csv",
+      "ref": "58415875"
+    },
+    {
+      "score": 0.80870,
+      "file": "sparsevit_v5_0.80870.csv",
+      "ref": "58688905"
+    }
+  ]
+}

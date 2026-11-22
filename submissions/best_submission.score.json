@@ -1,0 +1,7 @@
+{
+  "score": 0.8087,
+  "source": "kaggle_public_score",
+  "ref": "58688905",
+  "note": "Public Score of the CSV currently in best_submission.csv. Update this together with the CSV; the Action compares it with the historical best from Kaggle submission history.",
+  "sha256": "806939d3a81dcc7771c3b8f7d9b018a86c85788cd8a63b0246dc6004ceacf7b3"
+}
