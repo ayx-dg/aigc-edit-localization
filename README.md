@@ -1,100 +1,96 @@
-# AIGC Edited-Region Localization — SparseViT vs. the Historical Native Pipeline
+# AIGC 编辑区域定位 — SparseViT 与历史原生管线
 
-Public companion repository for Kaggle competition `ai-edited-image-localization-cs-5489`.
-It contains the historical ~0.92 native-resolution code, the current SparseViT
-pipeline, the thesis-driven report (source + PDF), error-localisation data and
-images, reference submissions, and a repository-owned automation step for Kaggle.
+本仓库是 Kaggle 竞赛 `ai-edited-image-localization-cs-5489`（逐像素 AI 编辑区域定位）的公开配套仓库。它包含历史约 0.92 的原生分辨率管线、当前 SparseViT 管线、课程报告（源码 + PDF）、错误定位数据与图片、参考提交，以及仓库自有的 Kaggle 交接自动化。它同时服务四类读者：
 
-## Headline result
+| 读者 | 你应该先看 |
+| --- | --- |
+| 本地维护者 / 接手的组员 | [仓库结构与约定](#仓库结构与约定) |
+| Codex、Claude Code 等 agent | [AGENTS.md](AGENTS.md) |
+| 评分老师 / 助教 | [从全新机器复现](#从全新机器复现)、[报告与仓库的对应](#报告与仓库的对应) |
+| 只想看结果的人 | 直接打开 `report/report.pdf`，不需要运行任何命令 |
 
-| System | Public Score |
-|---|---:|
-| Historical native-crop U-Net family (best) | **0.92213** |
-| SparseViT, whole image square-resized to 512×512 | 0.65764 |
-| SparseViT, lossless native 512×512 patches | 0.77279 |
-| Weighted two-view ensemble (0.4 global / 0.6 patch, thr 0.59) | **0.80870** |
+**仓库根目录就是本项目目录**：`git clone` 之后直接进入 `aigc-edit-localization/`，里面就是 `README.md`、`AGENTS.md`、`report/`、`code/` 等文件，不存在再嵌一层的子目录。
 
-**Central conclusion:** performance is driven mainly by *pixel-scale fidelity*
-and *validation aligned with the official full-image metric*, not by encoder
-choice. The remaining errors concentrate on small, low-contrast edits — exactly
-the evidence destroyed by whole-image downscaling. See `report/report.pdf`.
+---
 
-## Who this repository is for
-
-- **Local maintainer** — has the full local cache, probability maps and checkpoints;
-  uses them to regenerate analysis artefacts.
-- **Contributors / teammates** — no Kaggle account and no repository membership
-  required to start. Fork the public repository, use the committed data and
-  figures, make changes in a branch, and open a pull request. Codex or any agent
-  can work from this repository's `AGENTS.md` without machine-specific setup.
-- **Instructors / TAs** — the commands below assume a fresh machine and a dataset
-  that has already been provided by the course. No knowledge of the original
-  toolchain is assumed; environment setup is explicit.
-
-## Repository layout
+## 仓库结构与约定
 
 ```
-.
-├── AGENTS.md                 # data/code inventory, usage, collaboration rules
-├── README.md
-├── requirements-report.txt   # minimal deps for report + figures (CPU)
-├── requirements.txt          # full deps for training/inference (+ report deps)
+aigc-edit-localization/       # clone 后的根目录 = 本目录
+├── AGENTS.md                 # agent / 贡献者必读的规则、数据清单与复现契约
+├── README.md                 # 本文件：人读的入口
+├── requirements.txt          # 完整训练/推理依赖（包含报告依赖）
+├── requirements-report.txt   # 仅报告 + 作图所需依赖（CPU）
 ├── .github/workflows/
-│   └── kaggle_submit.yml     # fixed-CSV handoff to the repository-owned submission step
+│   └── kaggle_submit.yml     # 固定 CSV 的交接步骤：闸门通过后提交到 Kaggle
 ├── code/
-│   ├── historical_aigc/      # historical 0.90–0.92 native-crop pipeline
-│   ├── sparsevit/            # current SparseViT training/inference pipeline
-│   │   └── SparseViT/        # upstream AAAI2025 source (CC BY 4.0)
-│   └── common/rle.py         # verified column-major, 1-based RLE
+│   ├── common/rle.py         # 已验证的 RLE 编解码（列优先、1-based）
+│   ├── historical_aigc/      # 历史 0.90–0.92 原生裁剪管线
+│   └── sparsevit/            # 当前 SparseViT 训练、推理、数据处理、评估脚本
+│       └── SparseViT/        # 上游 AAAI2025 源码（CC BY 4.0）
 ├── data/
-│   ├── metadata/             # split metadata, test IDs, sample submission
-│   ├── analysis/             # error JSON + worst-image CSVs
-│   └── error_images/         # per-pixel error/disagreement PNGs
-├── report/                   # report.pdf, report.tex, generator, figures, score JSON
+│   ├── metadata/             # 划分元信息、测试 ID、样例提交
+│   ├── analysis/             # 错误分析 JSON 与最差图片 ID 列表
+│   └── error_images/         # 逐像素错误/分歧叠加图（PNG）
+├── report/                   # report.pdf / report.tex / 生成器 / 图 / 分数 JSON
+├── experiments/              # 最终训练记录、调参与稀疏度实验
+├── scripts/                  # 分析、作图、集成、闸门与交接工具
 ├── submissions/
-│   ├── best_submission.csv            # fixed handoff file; update this to submit
-│   ├── candidates/                    # proposed CSVs from pull requests
-│   ├── historical_best_0.92213.csv    # archived reference
-│   └── sparsevit_v5_0.80870.csv       # archived reference
-├── experiments/              # final-run and tuning records
-├── scripts/                  # analysis, figure, ensemble and handoff utilities
-└── work/                     # local generated data (ignored by git)
+│   ├── best_submission.csv            # 固定交接文件；更新它才会触发提交步骤
+│   ├── best_submission.score.json     # 候选成绩与 CSV 的 sha256（必须匹配）
+│   ├── candidates/                    # PR 中提议的候选 CSV
+│   ├── historical_best_0.92213.csv    # 归档的历史最佳
+│   └── sparsevit_v5_0.80870.csv       # 归档的 v5 集成提交
+└── work/                     # 本地生成的大文件（已被 git 忽略）
 ```
 
-## Environment on a fresh machine
+原始 WebP 图片、缓存图/掩码、无损 patch 缓存、官方 604 MB SparseViT checkpoint 与 `.npz` 概率图**不在仓库中**。它们由竞赛/课程提供，或按下面的命令从原始数据本地生成。仓库只保留复现报告所需的元信息、统计与图像。
 
-Python 3.11 is assumed. Install `uv` if it is not already available:
+---
+
+## 从全新机器复现
+
+这一节写给没有见过我们终端历史的人：按下面顺序执行即可得到本报告的全部数字和 PDF。命令只使用相对路径与 `AIGC_*` 环境变量，不依赖任何个人电脑、Windows 盘符或特定远程主机。
+
+### 1. 前置依赖
+
+需要 `git`、`uv`；重建 PDF 还需要 `pdflatex`；完整训练/推理需要 CUDA GPU 与已提供的数据文件。仅查看报告不需要 GPU 或 API key。
 
 ```bash
-# Linux / macOS
+# 安装 uv（若已安装可跳过）
 curl -LsSf https://astral.sh/uv/install.sh | sh
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Windows (PowerShell): powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Then, from the repository root:
+若只重建报告，安装 `requirements-report.txt` 即可；若要跑完整管线，安装 `requirements.txt`。首次安装需要联网，之后的实验阶段使用仓库中已提交的 JSON/PNG，不再联网。
+
+Debian/Ubuntu 的 LaTeX 依赖可用：
 
 ```bash
+sudo apt-get install -y texlive-latex-base texlive-latex-extra \
+                        texlive-fonts-recommended texlive-pictures
+```
+
+### 2. 拉取代码
+
+```bash
+git clone https://github.com/ayx-dg/aigc-edit-localization.git
+cd aigc-edit-localization
 uv venv --python 3.11 .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-uv pip install -r requirements-report.txt   # report + figures only
-uv pip install -r requirements.txt          # full pipeline (adds torch/timm/smp)
+uv pip install -r requirements-report.txt   # 报告 + 图（CPU）
+uv pip install -r requirements.txt          # 完整管线（额外加入 torch/timm/smp/kaggle）
 ```
 
-Rebuilding the PDF additionally needs `pdflatex` (TeX Live or MiKTeX). Report
-regeneration runs on CPU; full training/inference needs a CUDA GPU. All paths in
-the repository are relative or configured through `AIGC_*` environment variables.
-
-## Reproduce the report and error evidence (committed data only)
+### 3. 复现报告与错误证据（已提交数据）
 
 ```bash
 python report/make_report.py
-cd report && pdflatex -interaction=nonstopmode report.tex && pdflatex -interaction=nonstopmode report.tex && cd ..
+cd report && pdflatex -interaction=nonstopmode report.tex \
+          && pdflatex -interaction=nonstopmode report.tex && cd ..
 ```
 
-The committed JSON, figures and PNG error images are the evidence used by the
-report. To regenerate the error analysis itself, the cached images, validation
-masks and saved probability maps are required; point the script at them with:
+期望得到 13 页的 `report/report.pdf`。若要重跑错误分析本身，用环境变量指向外部产物：
 
 ```bash
 export AIGC_WORKDIR=/path/to/artifacts
@@ -103,13 +99,9 @@ export AIGC_TEST_IMAGES=/path/to/provided/dataset/test/images
 python scripts/analyze_errors.py
 ```
 
-## Full pipeline from an already-provided dataset
+### 4. 从头训练与推理（数据集与 checkpoint 已由课程/竞赛提供）
 
-The dataset is assumed to exist. Two layouts are accepted:
-
-- cache mode: `AIGC_CACHE_DIR` contains `meta.csv`, `imgs/`, `masks/`;
-- patch mode: `AIGC_DATA_DIR` contains `train.csv`, `train/images/*.webp`,
-  `test/images/*.webp`.
+数据支持两种布局：cache 模式要求 `$AIGC_CACHE_DIR` 下有 `meta.csv`、`imgs/`、`masks/`；patch 模式要求 `$AIGC_DATA_DIR` 下有 `train.csv`、`train/images/*.webp`、`test/images/*.webp`。
 
 ```bash
 export AIGC_DATA_DIR=/path/to/provided/dataset
@@ -140,56 +132,44 @@ python code/sparsevit/make_submission_from_probs.py "$AIGC_WORKDIR/ensemble.npz"
 python scripts/submit_kaggle.py --dry-run --submission "$AIGC_WORKDIR/candidate.csv"
 ```
 
-Thresholds are chosen on validation with `code/sparsevit/sweep_probs.py`; the
-values shown above reproduce the best reported configuration.
+阈值用 `code/sparsevit/sweep_probs.py` 在验证集上确定；上面给出的数值复现最佳报告配置。
 
-## Contribution and submission handoff
+### 5. 产物核对
 
-No Kaggle account or repository write access is needed to contribute:
+| 产物 | 内容 / 期望值 |
+| --- | --- |
+| `report/report.pdf` | 13 页；数字来自 `report/*.json`、`experiments/*`、`data/analysis/*` |
+| `data/analysis/` | 验证集误差分层、最差图片 ID；测试集两模型分歧 |
+| `data/error_images/` | 报告第 5 节使用的错误叠加图 |
+| `submissions/best_submission.csv` | 固定交接文件；其 `score.json` 的 `sha256` 必须与 CSV 一致 |
+| `submissions/candidates/` | PR 中提议的两列候选提交 |
 
-1. Fork this public repository and clone your fork.
-2. Set up the environment as above; run the report or analysis commands.
-3. Put any proposed submission CSV in `submissions/candidates/` (two columns
-   `ID,Predicted`), or change code/data documentation in a branch.
-4. Open a pull request describing the change and the validation Score.
+若修改代码或数据，需重跑相应管线、重新生成图与报告，并保持 PDF、JSON、LaTeX 表格中的数字一致。协作与闸门规则见 [AGENTS.md](AGENTS.md)。
 
-After review and merge, the maintainer copies the chosen candidate to
-`submissions/best_submission.csv` **and** updates the companion
-`submissions/best_submission.score.json` with its public Score and the CSV's
-`sha256`. The fixed CSV name is the handoff point; other pushes do not start
-the automation.
+---
 
-### Historical-best gate
+## For Codex
 
-The action never treats a new commit as the final score unconditionally. Before
-submitting, `scripts/gate_best_submission.py` reads our own Kaggle submission
-history at runtime (with `0.92213`, ref `58415875`, as the offline floor) and
-compares it with the candidate Score from the sidecar:
+If you are an agent, see [AGENTS.md](AGENTS.md) for contributing rules.
 
-- **candidate > historical best** → the CSV is archived, the score registry is
-  updated, and the CSV is submitted to Kaggle.
-- **candidate ≤ historical best** → nothing is submitted; the action restores
-  `best_submission.csv` from the archived best (`submissions/score_registry.json`)
-  and rewrites the sidecar, so the repository keeps the historical best entry.
+## 报告与仓库的对应
 
-The sidecar `sha256` must match the CSV; a mismatch fails closed. A manual run
-can simulate either branch without side effects:
+- `report/report.tex` 是报告源，`report/report.pdf` 是提交稿；图由 `scripts/make_report_figs.py` 生成。
+- 报告中的每个数字都能在 `report/*.json`、`experiments/*`、`data/analysis/*` 中找到；提交成绩在 `submissions/score_registry.json` 与 `report/kaggle_score*.json`。
+- `submissions/best_submission.csv` 是固定交接文件；候选 CSV 放在 `submissions/candidates/`，由维护者在审核后复制到固定文件并更新 sidecar。
+- `data/error_images/` 中的 PNG 是报告中的视觉证据；大图、checkpoint 和概率图不随仓库分发。
+- 自动化步骤只把固定文件名 `submissions/best_submission.csv` 当作交接点；其他文件的 push 不会启动它，贡献者不需要接触任何凭据。
 
-```bash
-gh workflow run kaggle_submit.yml -f dry_run=true -f score=0.99
-gh workflow run kaggle_submit.yml -f dry_run=true -f score=0.50
-gh run view --log    # inspect decision=SUBMIT / decision=KEEP
-```
+如果只想核对结论，直接打开 `report/report.pdf`：性能主要由像素保真度与官方全图指标对齐的验证决定；历史原生 U-Net 系列约 0.92，SparseViT 全局 512 缩放 0.65764，原生 patch 0.77279，双视图加权集成 0.80870；剩余错误集中在小面积、低对比度编辑。
 
-See `AGENTS.md` for the exact collaboration rules.
+---
 
-## Key format facts
+## 关键事实
 
-- Accepted submission: two columns `ID,Predicted`; the 5-column sample format
-  is rejected by Kaggle.
-- RLE is column-major (Fortran), 1-based `(start, length)`; empty mask = empty string.
-- Saved probability maps are `uint8` in `[0,255]`; divide by 255 before thresholding.
-- `Score = 0.7*mIoU + 0.3*mRecall`, computed per image then averaged.
+- 接受的提交格式是两列 `ID,Predicted`；5 列样例格式会被 Kaggle 判 `SubmissionStatus.ERROR`。
+- RLE 为列优先（Fortran）、1-based `(start, length)`，空掩码为空字符串。
+- `*_probs_512.npz` 中的概率是 `uint8` `[0,255]`，阈值化前必须除以 255。
+- `Score = 0.7 * mIoU + 0.3 * mRecall`，逐图计算后平均；两图皆空记 1，仅一图为空记 0。
+- 历史最高公开成绩为 `0.92213`（ref `58415875`）；v5 集成的 `0.80870` 不是历史最高。
 
-Upstream SparseViT source is retained under CC BY 4.0 in
-`code/sparsevit/SparseViT/LICENSE`.
+上游 SparseViT 源码以 CC BY 4.0 保留在 `code/sparsevit/SparseViT/LICENSE`。
