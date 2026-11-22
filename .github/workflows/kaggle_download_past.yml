@@ -33,22 +33,31 @@ jobs:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p submissions/past
+          {
+            kaggle --version
+            kaggle competitions submission-download --help
+          } > reports/past_download.log 2>&1
           for ref in 58415875 58369543 58373393 58346197 58474337 58336311; do
             rm -rf /tmp/kdl && mkdir -p /tmp/kdl
-            kaggle competitions submission-download "$ref" -p /tmp/kdl --force
+            echo "=== $ref ===" >> reports/past_download.log
+            kaggle competitions submission-download "$ref" -p /tmp/kdl --force >> reports/past_download.log 2>&1 || true
             f=$(find /tmp/kdl -type f -name '*.csv' | head -1)
-            if [ -z "$f" ]; then echo "no csv downloaded for $ref"; exit 1; fi
-            cp "$f" "submissions/past/ref_${ref}.csv"
-            echo "downloaded $ref -> $(wc -c < "submissions/past/ref_${ref}.csv") bytes"
+            if [ -n "$f" ]; then
+              cp "$f" "submissions/past/ref_${ref}.csv"
+              echo "downloaded $ref -> $(wc -c < "submissions/past/ref_${ref}.csv") bytes" >> reports/past_download.log
+            else
+              echo "no csv downloaded for $ref" >> reports/past_download.log
+            fi
           done
+          cat reports/past_download.log
 
       - name: Commit downloaded submissions
         run: |
           git config user.name "past-submission-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add submissions/past
+          git add submissions/past reports/past_download.log
           if git diff --cached --quiet; then
             echo "no changes"
           else
