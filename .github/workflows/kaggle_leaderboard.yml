@@ -58,7 +58,7 @@ jobs:
             rm -rf /tmp/kdl && mkdir -p /tmp/kdl
             echo "--- $ref ---" >> reports/kaggle_snapshot.txt
             kaggle competitions submission-download "$ref" -p /tmp/kdl --force >> reports/kaggle_snapshot.txt 2>&1 || true
-            f=$(find /tmp/kdl -type f -name '*.csv' | head -1)
+            f=$(find /tmp/kdl -type f | head -1)
             if [ -n "$f" ]; then
               cp "$f" "submissions/past/ref_${ref}.csv"
               echo "saved $ref" >> reports/kaggle_snapshot.txt
