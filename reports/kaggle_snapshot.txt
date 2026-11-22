@@ -1,5 +1,5 @@
 competition: ai-edited-image-localization-cs-5489
-queried: 2026-11-22T07:49:02Z
+queried: 2026-11-22T08:05:24Z
 === LEADERBOARD ===
   teamId  teamName   submissionDate              score    
 --------  ---------  --------------------------  -------  
@@ -9,13 +9,14 @@ queried: 2026-11-22T07:49:02Z
 17345793  Group 3    2026-11-21 06:43:22.753000  0.93941  
 17200409  Group 2    2026-11-18 01:47:42.276000  0.93629  
 17261479  Group 8    2026-11-21 07:44:27.826000  0.93362  
-17305990  Group 14   2026-11-21 22:08:16.320000  0.92213  
+17305990  Group 14   2026-11-22 07:53:42.273000  0.92213  
 17371002  第13组       2026-11-19 07:41:58.613000  0.91508  
 17407891  Group 10   2026-11-22 04:42:34.533000  0.89740  
 17412539  youli You  2026-11-22 03:53:13.270000  0.87500  
 17302160  Group 30   2026-11-21 10:08:52.960000  0.51362  
 === OUR SUBMISSIONS ===
 ref,fileName,date,description,status,publicScore,privateScore
+58710159,active.csv,2026-11-22 07:53:42.273000,Pipeline test - historical best (expect 0.92213),SubmissionStatus.COMPLETE,0.92213,
 58688905,submission_w04_thr059.csv,2026-11-21 22:08:16.320000,"Ensemble w_global0.4 w_patch0.6, thr0.59 (val 0.8013)",SubmissionStatus.COMPLETE,0.80870,
 58688690,submission_thr048.csv,2026-11-21 22:00:49.783000,"Ensemble global512 + native-patch, avg probs, thr0.48",SubmissionStatus.COMPLETE,0.80113,
 58688590,submission_thr086.csv,2026-11-21 21:57:25.080000,"SparseViT native512 patches, best ep4, native sliding, thr0.86",SubmissionStatus.COMPLETE,0.77279,
