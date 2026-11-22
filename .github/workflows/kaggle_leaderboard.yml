@@ -46,11 +46,32 @@ jobs:
             kaggle competitions submissions -c "$SLUG" --csv --page-size 200 2>&1 || true
           } > reports/kaggle_snapshot.txt
 
+      - name: Archive selected past submissions
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p submissions/past
+          echo "=== PAST SUBMISSION DOWNLOAD ===" >> reports/kaggle_snapshot.txt
+          for ref in 58415875 58369543 58373393 58346197 58474337 58336311; do
+            rm -rf /tmp/kdl && mkdir -p /tmp/kdl
+            echo "--- $ref ---" >> reports/kaggle_snapshot.txt
+            kaggle competitions submission-download "$ref" -p /tmp/kdl --force >> reports/kaggle_snapshot.txt 2>&1 || true
+            f=$(find /tmp/kdl -type f -name '*.csv' | head -1)
+            if [ -n "$f" ]; then
+              cp "$f" "submissions/past/ref_${ref}.csv"
+              echo "saved $ref" >> reports/kaggle_snapshot.txt
+            else
+              echo "missing $ref" >> reports/kaggle_snapshot.txt
+            fi
+          done
+
       - name: Commit snapshot
         run: |
           git config user.name "leaderboard-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add reports/kaggle_snapshot.txt
+          git add reports/kaggle_snapshot.txt submissions/past
           if git diff --cached --quiet; then
             echo "no snapshot changes"
           else
