@@ -4,6 +4,7 @@ name: Kaggle leaderboard snapshot
 # submission history using the repository's existing Kaggle credentials.
 # Refreshed after candidate-submission pipeline checks.
 # Diagnostic refresh after ensemble candidate validation.
+# Refresh to check Kaggle quota before submitting the historical student.
 # Triggered manually or when this workflow file changes.
 on:
   push:
