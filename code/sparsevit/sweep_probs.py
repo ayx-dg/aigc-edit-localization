@@ -12,6 +12,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import numpy as np
@@ -37,7 +38,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("probs", nargs="+", type=Path,
                     help="two npz files: global and native (in that order)")
-    ap.add_argument("--cache-dir", type=Path, default=Path("/home/a/unet/cache"))
+    repo = Path(__file__).resolve().parents[2]
+    ap.add_argument("--cache-dir", type=Path,
+                    default=Path(os.environ.get("AIGC_CACHE_DIR", str(repo / "data" / "metadata"))))
     ap.add_argument("--ids", type=int, nargs="*",
                     help="validate only these ID values (default: all val ids)")
     args = ap.parse_args()

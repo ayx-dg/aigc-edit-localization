@@ -1,0 +1,6 @@
+numpy>=1.26,<3
+pandas>=2.0,<3
+Pillow>=10,<12
+matplotlib>=3.7,<4
+scipy>=1.10,<2
+pyyaml>=6,<7

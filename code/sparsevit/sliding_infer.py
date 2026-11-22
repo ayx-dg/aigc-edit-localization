@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Native-resolution sliding-window inference for the SparseViT checkpoint.
 
-Runs on ac1 (GPU). Reads lossless WebP images, tiles them into 512x512
+Reads lossless WebP images, tiles them into 512x512
 windows with overlap, runs the model, blends the overlapping probability maps,
 encodes the result as RLE and writes a Kaggle submission.
 
@@ -12,8 +12,8 @@ Modes
   native : sliding 512x512 windows at native resolution + overlap blending.
   both   : average of global and native probability maps.
 
-Example (ac1):
-  python sliding_infer.py --webp-dir test_webp --out out_sw_native \
+Example:
+  python code/sparsevit/sliding_infer.py --webp-dir test_webp --out out_sw_native \
       --ckpt out_final_4500/best.pt --mode native --overlap 0.5 --batch-size 16
 """
 from __future__ import annotations

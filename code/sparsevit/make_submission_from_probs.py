@@ -7,6 +7,7 @@ Usage:
 from __future__ import annotations
 
 import csv
+import os
 import sys
 from pathlib import Path
 
@@ -36,7 +37,8 @@ def main():
     d = np.load(probs_path)
     probs = d["probs"].astype(np.float32) / 255.0
     ids = [str(s).strip() for s in d["ids"]]
-    meta = pd.read_csv("/home/a/unet/cache/meta.csv")
+    repo = Path(__file__).resolve().parents[2]
+    meta = pd.read_csv(os.environ.get("AIGC_META_CSV", str(repo / "data" / "metadata" / "meta.csv")))
     meta["key"] = meta["ID"].map(lambda i: f"{int(i):06d}")
     meta = meta.set_index("key")
     with out_path.open("w", newline="", encoding="utf-8") as f:

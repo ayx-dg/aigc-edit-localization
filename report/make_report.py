@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate an English LaTeX report from locally saved experiment results.
 
-Run:  python /home/a/unet/report/make_report.py
+Run:  python report/make_report.py
 Then: pdflatex -interaction=nonstopmode report.tex   (twice)
 """
 from __future__ import annotations
@@ -202,9 +202,9 @@ if kaggle and kaggle_v3 and best_submission:
 A(r"\section{Evidence from the public leaderboard}")
 A(r"Table~\ref{tab:hist} lists the historical submissions and Table~\ref{tab:ours} our "
   r"submissions. Fig.~\ref{fig:scores} makes the progression visible. The historical "
-  r"family was produced by the native-crop code in {\tt /home/a/unet/aigc/}; the earlier "
-  r"{\tt AIGC\_detection} directory is an older downscaled ResNet34 U-Net sanity project "
-  r"and produced only an all-edited baseline, not a scoring model.")
+  r"family was produced by the native-crop code in {\tt code/historical\_aigc/}; the earlier "
+  r"downscaled ResNet34 U-Net sanity project produced only an all-edited baseline, not a "
+  r"scoring model.")
 A(r"\begin{table}[htbp]\centering")
 A(r"\caption{Historical public submissions (native-resolution pipeline family).}")
 A(r"\label{tab:hist}")
@@ -520,27 +520,52 @@ if sw_analysis:
 
 # ------------------------------------------------------------------ 9. reproducibility
 A(r"\section{Reproducibility and submission format}")
-A(r"All GPU jobs run on the remote Windows host {\tt ac1}; the official SparseViT code "
-  r"and 604\,MB checkpoint live under {\tt C:/Users/Lenovo/unet\_full/SparseViT}. Long "
-  r"jobs are detached with {\tt creationflags=0x00000008\,|\,0x00000200\,|\,0x01000000}.")
+A(r"The commands below assume a fresh machine and a dataset already supplied by the "
+  r"course. They use only relative paths and \texttt{AIGC\_*} variables, so no "
+  r"machine-specific setup is required to reproduce the analysis. Python 3.11 and "
+  r"\texttt{uv} pin the environment:")
 A(r"\begin{verbatim}")
-A(r"PY=C:/Users/Lenovo/.conda/envs/BME6145/python.exe")
-A(r"CKPT=C:/Users/Lenovo/unet_full/SparseViT/checkpoint/checkpoint.pth")
-A(r"$PY train.py --cache-dir C:/Users/Lenovo/unet_full/cache \\")
-A(r"  --out-dir C:/Users/Lenovo/unet_full/out_final_4500 --arch sparsevit \\")
-A(r"  --encoder-weights $CKPT --size 512 --batch-size 8 --epochs 10 \\")
-A(r"  --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42 \\")
-A(r"  --workers 2 --save-every-steps 100")
-A(r"$PY train.py --patch-dir C:/Users/Lenovo/unet_full/patches \\")
-A(r"  --out-dir C:/Users/Lenovo/unet_full/out_patch --arch sparsevit \\")
-A(r"  --encoder-weights $CKPT --size 512 --batch-size 8 --epochs 5 \\")
-A(r"  --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42")
-A(r"$PY sliding_infer.py --webp-dir C:/Users/Lenovo/unet_full/test_webp \\")
-A(r"  --out C:/Users/Lenovo/unet_full/sw_patch_test_native \\")
-A(r"  --ckpt C:/Users/Lenovo/unet_full/out_patch/best.pt \\")
-A(r"  --mode native --overlap 0.5 --weight hann --batch-size 16 \\")
-A(r"  --threshold 0.20 --save-probs")
-A(r"python make_submission_from_probs.py PROBS.npz THR OUT.csv")
+A(r"curl -LsSf https://astral.sh/uv/install.sh | sh     # Linux/macOS")
+A(r"# Windows PowerShell: irm https://astral.sh/uv/install.ps1 | iex")
+A(r"git clone https://github.com/ayx-dg/aigc-edit-localization.git")
+A(r"cd aigc-edit-localization")
+A(r"uv venv --python 3.11 .venv && source .venv/bin/activate")
+A(r"uv pip install -r requirements-report.txt   # figures and report only")
+A(r"uv pip install -r requirements.txt          # full training/inference")
+A(r"\end{verbatim}")
+A(r"Rebuilding the PDF needs only the committed JSON, figure and PNG evidence plus "
+  r"\texttt{pdflatex}; no GPU is involved:")
+A(r"\begin{verbatim}")
+A(r"python report/make_report.py")
+A(r"cd report && pdflatex -interaction=nonstopmode report.tex \\")
+A(r"  && pdflatex -interaction=nonstopmode report.tex")
+A(r"\end{verbatim}")
+A(r"To retrain, set the data and checkpoint locations and run the full pipeline. The "
+  r"two sliding-window views are combined at weights $0.4/0.6$ and thresholded at "
+  r"$0.59$ to reproduce the best configuration:")
+A(r"\begin{verbatim}")
+A(r"export AIGC_DATA_DIR=/path/to/provided/dataset")
+A(r"export AIGC_WORKDIR=$PWD/work")
+A(r"export AIGC_PATCH_DIR=$AIGC_WORKDIR/patches")
+A(r"export AIGC_SPARSE_CKPT=/path/to/official_sparsevit_checkpoint.pth")
+A(r"python code/sparsevit/make_patches.py --data-dir $AIGC_DATA_DIR --out-dir $AIGC_PATCH_DIR")
+A("python code/sparsevit/train.py --cache-dir $AIGC_DATA_DIR/cache --out-dir $AIGC_WORKDIR/out_global \\")
+A(r"  --arch sparsevit --encoder-weights $AIGC_SPARSE_CKPT --size 512 \\")
+A(r"  --batch-size 8 --epochs 10 --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42")
+A("python code/sparsevit/train.py --patch-dir $AIGC_PATCH_DIR --out-dir $AIGC_WORKDIR/out_patch \\")
+A(r"  --arch sparsevit --encoder-weights $AIGC_SPARSE_CKPT --size 512 \\")
+A(r"  --batch-size 8 --epochs 5 --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42")
+A("python code/sparsevit/sliding_infer.py --webp-dir $AIGC_DATA_DIR/test/images \\")
+A(r"  --out $AIGC_WORKDIR/sw_global --ckpt $AIGC_WORKDIR/out_global/best.pt \\")
+A(r"  --mode global --overlap 0.5 --weight hann --save-probs")
+A("python code/sparsevit/sliding_infer.py --webp-dir $AIGC_DATA_DIR/test/images \\")
+A(r"  --out $AIGC_WORKDIR/sw_native --ckpt $AIGC_WORKDIR/out_patch/best.pt \\")
+A(r"  --mode native --overlap 0.5 --weight hann --save-probs")
+A("python scripts/make_ensemble_probs.py $AIGC_WORKDIR/sw_global/test_probs_512.npz \\")
+A(r"  $AIGC_WORKDIR/sw_native/test_probs_512.npz $AIGC_WORKDIR/ensemble.npz \\")
+A(r"  --w-global 0.4 --w-native 0.6")
+A("python code/sparsevit/make_submission_from_probs.py $AIGC_WORKDIR/ensemble.npz 0.59 \\")
+A(r"  $AIGC_WORKDIR/candidate.csv")
 A(r"\end{verbatim}")
 A(r"Predicted probabilities are bilinearly upsampled to the original $H\times W$, "
   r"thresholded, and encoded as column-major (Fortran order), 1-based RLE. A two-column "
@@ -551,8 +576,11 @@ A(r"005001,120 30 500 20")
 A(r"005002,")
 A(r"\end{verbatim}")
 A(r"An empty mask is an empty string. Saved probability maps are uint8 in $[0,255]$ and "
-  r"must be divided by 255 before thresholding. All artefacts, error JSON files and "
-  r"submission CSVs are under {\tt /home/a/unet/report/} and {\tt pipeline\_results/}.")
+  r"must be divided by 255 before thresholding. Report artefacts, error JSON files and "
+  r"archived submissions all live inside the repository. Contributions use forks and "
+  r"pull requests: proposed CSVs are placed under \texttt{submissions/candidates/} and "
+  r"the maintainer copies the accepted candidate to the fixed handoff file "
+  r"\texttt{submissions/best\_submission.csv}; no contributor needs credentials.")
 
 # ------------------------------------------------------------------ appendix
 A(r"\appendix")

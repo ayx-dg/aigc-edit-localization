@@ -15,12 +15,13 @@ Output layout under --out-dir:
     manifest.csv           id,kind,cy,cx,edited_frac,src_h,src_w
 
 Run locally (CPU only):
-    python /home/a/unet/make_patches.py --per-image 2 --workers 8
+    python code/sparsevit/make_patches.py --data-dir DATA_DIR --out-dir WORK_DIR/patches
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import os
 import sys
 import time
 from pathlib import Path
@@ -29,16 +30,17 @@ from multiprocessing import Pool
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, "/home/a/Downloads/AIGC_detection")
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO / "code" / "common"))
 from rle import rle_decode  # noqa: E402  (verified column-major, 1-based)
 
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data-dir", type=Path,
-                   default=Path("/home/a/Documents/AIGC Detection Dataset 2026/"
-                                "AIGC Detection Dataset 2026"))
-    p.add_argument("--out-dir", type=Path, default=Path("/home/a/unet/patches"))
+                   default=Path(os.environ.get("AIGC_DATA_DIR", str(REPO / "data" / "raw"))))
+    p.add_argument("--out-dir", type=Path,
+                   default=Path(os.environ.get("AIGC_PATCH_DIR", str(REPO / "work" / "patches"))))
     p.add_argument("--patch-size", type=int, default=512)
     p.add_argument("--per-image", type=int, default=2,
                    help="total patches per image (>=2: 1 positive + rest negative)")
@@ -163,7 +165,7 @@ def main():
     if args.split in ("train", "val"):
         # Reuse the exact 4500/500 split of the current best model so results
         # are directly comparable and the validation set stays unseen.
-        meta = pd.read_csv("/home/a/unet/cache/meta.csv")
+        meta = pd.read_csv(os.environ.get("AIGC_META_CSV", str(REPO / "data" / "metadata" / "meta.csv")))
         val_ids = set(meta.loc[meta["split"] == "val", "ID"].astype(int).tolist())
         if args.split == "train":
             df = df[~df["ID"].isin(val_ids)]

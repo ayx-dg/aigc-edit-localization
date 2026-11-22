@@ -1,31 +1,29 @@
-"""Automated GPU pipeline on ac1, staged after the final full-data run.
+"""Optional orchestration for the sliding-window and native-patch stages.
 
-Stage 1 (SW): sliding-window inference on val (global + native) and test
-              (global + native) using the current best checkpoint.
-Stage 2 (PATCH): train SparseViT from ImageNet weights on native 512px patches.
-
-Everything is logged to C:/Users/Lenovo/unet_full/pipeline.log and writes
-SW_DONE.txt / PATCH_TRAIN_DONE.txt markers for the local collector.
+The working directory and interpreter are configurable, so the same script can
+run on a local GPU box or a remote host. Set AIGC_WORKDIR, AIGC_PYTHON and
+AIGC_SPARSE_CKPT before use; all paths default to the repository checkout.
 """
+import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
-OUT = Path("C:/Users/Lenovo/unet_full")
-PY = r"C:\Users\Lenovo\.conda\envs\BME6145\python.exe"
-CKPT = str(OUT / "out_final_4500" / "best.pt")
-# Official AAAI2025 SparseViT pretrained weights (required: "imagenet" = random
-# init for this architecture).
-SPARSE_CKPT = str(OUT / "SparseViT" / "checkpoint" / "checkpoint.pth")
-FINAL_DONE = OUT / "FINAL_DONE.txt"
-LOG = OUT / "pipeline.log"
-ERR = OUT / "pipeline.err"
-
-# thresholds for the first pass; retuned offline after val analysis
+REPO = Path(__file__).resolve().parents[2]
+WORK = Path(os.environ.get("AIGC_WORKDIR", str(REPO)))
+CODE = REPO / "code" / "sparsevit"
+PY = os.environ.get("AIGC_PYTHON", sys.executable)
+CKPT = os.environ.get("AIGC_CKPT", str(WORK / "out_final_4500" / "best.pt"))
+# Official AAAI2025 SparseViT weights; "imagenet" means random init for this arch.
+SPARSE_CKPT = os.environ.get("AIGC_SPARSE_CKPT", str(WORK / "SparseViT" / "checkpoint" / "checkpoint.pth"))
+FINAL_DONE = WORK / "FINAL_DONE.txt"
+LOG = WORK / "pipeline.log"
+ERR = WORK / "pipeline.err"
 THR = 0.20
 
 
-def run(cmd, cwd=str(OUT), check=True):
+def run(cmd, cwd=str(WORK), check=True):
     with LOG.open("a") as fl, ERR.open("a") as fe:
         fl.write(f"\n=== RUN {' '.join(str(x) for x in cmd)} ===\n")
         fl.flush()
@@ -44,19 +42,16 @@ def main():
     with LOG.open("a") as f:
         f.write("=== PIPELINE START ===\n")
 
-    # wait for the final run to release the GPU
     deadline = time.time() + 6 * 3600
     while time.time() < deadline:
         if FINAL_DONE.exists():
             break
         time.sleep(120)
     if not FINAL_DONE.exists():
-        (OUT / "PIPELINE_FAILED.txt").write_text("final run never finished")
+        (WORK / "PIPELINE_FAILED.txt").write_text("final run never finished")
         return
-    # give the previous process a moment to exit
     time.sleep(60)
 
-    # ---------------- Stage 1: sliding-window inference ----------------
     jobs = [
         ("val_global", "val_webp", "global"),
         ("val_native", "val_webp", "native"),
@@ -64,27 +59,26 @@ def main():
         ("test_native", "test_webp", "native"),
     ]
     for name, webp, mode in jobs:
-        run([PY, str(OUT / "sliding_infer.py"),
-             "--webp-dir", str(OUT / webp),
-             "--out", str(OUT / ("sw_" + name)),
+        run([PY, str(CODE / "sliding_infer.py"),
+             "--webp-dir", str(WORK / webp),
+             "--out", str(WORK / ("sw_" + name)),
              "--ckpt", CKPT, "--mode", mode,
              "--overlap", "0.5", "--weight", "hann",
              "--batch-size", "16", "--threshold", str(THR),
              "--save-probs"])
-    (OUT / "SW_DONE.txt").write_text("ok\n", encoding="utf-8")
+    (WORK / "SW_DONE.txt").write_text("ok\n", encoding="utf-8")
     with LOG.open("a") as f:
         f.write("=== SW_DONE ===\n")
 
-    # ---------------- Stage 2: native-patch training -------------------
-    run([PY, str(OUT / "train.py"),
-         "--patch-dir", str(OUT / "patches"),
-         "--out-dir", str(OUT / "out_patch"),
+    run([PY, str(CODE / "train.py"),
+         "--patch-dir", str(WORK / "patches"),
+         "--out-dir", str(WORK / "out_patch"),
          "--arch", "sparsevit", "--encoder-weights", SPARSE_CKPT,
          "--size", "512", "--batch-size", "8",
          "--epochs", "5", "--lr", "1e-4", "--weight-decay", "1e-4",
          "--drop-path", "0.2", "--seed", "42", "--workers", "2",
          "--save-every-steps", "200"])
-    (OUT / "PATCH_TRAIN_DONE.txt").write_text("ok\n", encoding="utf-8")
+    (WORK / "PATCH_TRAIN_DONE.txt").write_text("ok\n", encoding="utf-8")
     with LOG.open("a") as f:
         f.write("=== PIPELINE ALL DONE ===\n")
 

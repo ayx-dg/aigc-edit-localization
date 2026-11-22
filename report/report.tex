@@ -11,7 +11,7 @@
 \textbf{Claim.} Performance in this task is governed primarily by \emph{pixel-scale fidelity} and by \emph{validation aligned with the competition metric}, not by the choice of encoder. The historical native-resolution pipeline reaches public scores of $0.90$--$0.92$ with ordinary U-Net architectures, while our SparseViT trained on square-downscaled whole images reaches only $0.65764$. Preserving original pixels in $512\times512$ crops raises SparseViT to $0.77279$, and combining the global and native views raises it to $0.80870$. The remaining gap is highly non-uniform: it is concentrated on small and low-contrast edits, which are exactly the evidence destroyed by whole-image downscaling.
 Concretely, the public Score improved from 0.65764 (global SparseViT) to 0.77279 (native-patch SparseViT) and then to \textbf{0.80870} (weighted two-view ensemble). On the 500-image validation set, images with ground-truth edited area below $1\%$ score $0.31$--$0.66$, whereas images with more than $5\%$ edited area score $0.87$. On the test set, the historical $0.92$ model and our ensemble agree to within a few percent of predicted area on images with substantial edits, but differ by up to $72\times$ in predicted area when the edited region is tiny. The practical lesson is therefore architectural in the data sense: keep native pixels, select checkpoints with full-image official Score, and use complementary views; changing the sparse-attention pattern is a second-order effect.
 \section{Evidence from the public leaderboard}
-Table~\ref{tab:hist} lists the historical submissions and Table~\ref{tab:ours} our submissions. Fig.~\ref{fig:scores} makes the progression visible. The historical family was produced by the native-crop code in {\tt /home/a/unet/aigc/}; the earlier {\tt AIGC\_detection} directory is an older downscaled ResNet34 U-Net sanity project and produced only an all-edited baseline, not a scoring model.
+Table~\ref{tab:hist} lists the historical submissions and Table~\ref{tab:ours} our submissions. Fig.~\ref{fig:scores} makes the progression visible. The historical family was produced by the native-crop code in {\tt code/historical\_aigc/}; the earlier downscaled ResNet34 U-Net sanity project produced only an all-edited baseline, not a scoring model.
 \begin{table}[htbp]\centering
 \caption{Historical public submissions (native-resolution pipeline family).}
 \label{tab:hist}
@@ -214,25 +214,46 @@ Average of both & 0.50 & 0.6772 & 0.7328 & 0.6939 \\
 \end{table}
 Native sliding with the globally trained model is weak ($0.4765$) because of the scale mismatch; the patch-trained model reaches $0.7648$, and averaging the two views on whole-image validation reaches $0.7923$ before weight tuning.
 \section{Reproducibility and submission format}
-All GPU jobs run on the remote Windows host {\tt ac1}; the official SparseViT code and 604\,MB checkpoint live under {\tt C:/Users/Lenovo/unet\_full/SparseViT}. Long jobs are detached with {\tt creationflags=0x00000008\,|\,0x00000200\,|\,0x01000000}.
+The commands below assume a fresh machine and a dataset already supplied by the course. They use only relative paths and \texttt{AIGC\_*} variables, so no machine-specific setup is required to reproduce the analysis. Python 3.11 and \texttt{uv} pin the environment:
 \begin{verbatim}
-PY=C:/Users/Lenovo/.conda/envs/BME6145/python.exe
-CKPT=C:/Users/Lenovo/unet_full/SparseViT/checkpoint/checkpoint.pth
-$PY train.py --cache-dir C:/Users/Lenovo/unet_full/cache \\
-  --out-dir C:/Users/Lenovo/unet_full/out_final_4500 --arch sparsevit \\
-  --encoder-weights $CKPT --size 512 --batch-size 8 --epochs 10 \\
-  --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42 \\
-  --workers 2 --save-every-steps 100
-$PY train.py --patch-dir C:/Users/Lenovo/unet_full/patches \\
-  --out-dir C:/Users/Lenovo/unet_full/out_patch --arch sparsevit \\
-  --encoder-weights $CKPT --size 512 --batch-size 8 --epochs 5 \\
-  --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42
-$PY sliding_infer.py --webp-dir C:/Users/Lenovo/unet_full/test_webp \\
-  --out C:/Users/Lenovo/unet_full/sw_patch_test_native \\
-  --ckpt C:/Users/Lenovo/unet_full/out_patch/best.pt \\
-  --mode native --overlap 0.5 --weight hann --batch-size 16 \\
-  --threshold 0.20 --save-probs
-python make_submission_from_probs.py PROBS.npz THR OUT.csv
+curl -LsSf https://astral.sh/uv/install.sh | sh     # Linux/macOS
+# Windows PowerShell: irm https://astral.sh/uv/install.ps1 | iex
+git clone https://github.com/ayx-dg/aigc-edit-localization.git
+cd aigc-edit-localization
+uv venv --python 3.11 .venv && source .venv/bin/activate
+uv pip install -r requirements-report.txt   # figures and report only
+uv pip install -r requirements.txt          # full training/inference
+\end{verbatim}
+Rebuilding the PDF needs only the committed JSON, figure and PNG evidence plus \texttt{pdflatex}; no GPU is involved:
+\begin{verbatim}
+python report/make_report.py
+cd report && pdflatex -interaction=nonstopmode report.tex \\
+  && pdflatex -interaction=nonstopmode report.tex
+\end{verbatim}
+To retrain, set the data and checkpoint locations and run the full pipeline. The two sliding-window views are combined at weights $0.4/0.6$ and thresholded at $0.59$ to reproduce the best configuration:
+\begin{verbatim}
+export AIGC_DATA_DIR=/path/to/provided/dataset
+export AIGC_WORKDIR=$PWD/work
+export AIGC_PATCH_DIR=$AIGC_WORKDIR/patches
+export AIGC_SPARSE_CKPT=/path/to/official_sparsevit_checkpoint.pth
+python code/sparsevit/make_patches.py --data-dir $AIGC_DATA_DIR --out-dir $AIGC_PATCH_DIR
+python code/sparsevit/train.py --cache-dir $AIGC_DATA_DIR/cache --out-dir $AIGC_WORKDIR/out_global \
+  --arch sparsevit --encoder-weights $AIGC_SPARSE_CKPT --size 512 \\
+  --batch-size 8 --epochs 10 --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42
+python code/sparsevit/train.py --patch-dir $AIGC_PATCH_DIR --out-dir $AIGC_WORKDIR/out_patch \
+  --arch sparsevit --encoder-weights $AIGC_SPARSE_CKPT --size 512 \\
+  --batch-size 8 --epochs 5 --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42
+python code/sparsevit/sliding_infer.py --webp-dir $AIGC_DATA_DIR/test/images \
+  --out $AIGC_WORKDIR/sw_global --ckpt $AIGC_WORKDIR/out_global/best.pt \\
+  --mode global --overlap 0.5 --weight hann --save-probs
+python code/sparsevit/sliding_infer.py --webp-dir $AIGC_DATA_DIR/test/images \
+  --out $AIGC_WORKDIR/sw_native --ckpt $AIGC_WORKDIR/out_patch/best.pt \\
+  --mode native --overlap 0.5 --weight hann --save-probs
+python scripts/make_ensemble_probs.py $AIGC_WORKDIR/sw_global/test_probs_512.npz \
+  $AIGC_WORKDIR/sw_native/test_probs_512.npz $AIGC_WORKDIR/ensemble.npz \\
+  --w-global 0.4 --w-native 0.6
+python code/sparsevit/make_submission_from_probs.py $AIGC_WORKDIR/ensemble.npz 0.59 \
+  $AIGC_WORKDIR/candidate.csv
 \end{verbatim}
 Predicted probabilities are bilinearly upsampled to the original $H\times W$, thresholded, and encoded as column-major (Fortran order), 1-based RLE. A two-column file is required:
 \begin{verbatim}
@@ -240,7 +261,7 @@ ID,Predicted
 005001,120 30 500 20
 005002,
 \end{verbatim}
-An empty mask is an empty string. Saved probability maps are uint8 in $[0,255]$ and must be divided by 255 before thresholding. All artefacts, error JSON files and submission CSVs are under {\tt /home/a/unet/report/} and {\tt pipeline\_results/}.
+An empty mask is an empty string. Saved probability maps are uint8 in $[0,255]$ and must be divided by 255 before thresholding. Report artefacts, error JSON files and archived submissions all live inside the repository. Contributions use forks and pull requests: proposed CSVs are placed under \texttt{submissions/candidates/} and the maintainer copies the accepted candidate to the fixed handoff file \texttt{submissions/best\_submission.csv}; no contributor needs credentials.
 \appendix
 \section{Training dynamics and pixel-level errors}
 \begin{figure}[htbp]\centering

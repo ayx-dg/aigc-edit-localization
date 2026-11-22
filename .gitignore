@@ -14,6 +14,8 @@ venv/
 !data/error_images/*.png
 patches/
 cache/
+work/
+data/raw/
 out*/
 pipeline_results/
 

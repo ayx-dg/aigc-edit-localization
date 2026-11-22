@@ -101,8 +101,8 @@ def parse_args():
                    choices=("unet", "unetpp", "segformer", "deeplabv3plus",
                             "effnet_unet", "sparsevit"))
     p.add_argument("--cudnn", action="store_true",
-                   help="keep cuDNN enabled (off by default: the ac1 torch "
-                        "wheel has a broken cudnnGetVersion symbol)")
+                   help="keep cuDNN enabled (off by default for compatibility with "
+                        "torch wheels that have a broken cudnnGetVersion symbol)")
     p.add_argument("--no-amp", action="store_true", help="disable fp16 autocast")
     return p.parse_args()
 
@@ -144,8 +144,8 @@ def main():
     args = parse_args()
     set_seed(args.seed)
     if not args.cudnn:
-        # ac1's torch 2.10 + CUDA 13 wheel fails to load cudnnGetVersion;
-        # plain CUDA convolutions work fine, so skip cuDNN by default.
+        # Some torch wheels fail to load cudnnGetVersion; plain CUDA
+        # convolutions work fine, so cuDNN stays off unless requested.
         torch.backends.cudnn.enabled = False
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     use_amp = device.type == "cuda" and not args.no_amp
