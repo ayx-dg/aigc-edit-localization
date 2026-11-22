@@ -1,0 +1,58 @@
+name: Kaggle leaderboard snapshot
+
+# Read-only diagnostic: records the private competition leaderboard and our own
+# submission history using the repository's existing Kaggle credentials.
+# Triggered manually or when this workflow file changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/kaggle_leaderboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Kaggle CLI
+        run: python -m pip install --quiet kaggle
+
+      - name: Query Kaggle leaderboard and submissions
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          SLUG: ai-edited-image-localization-cs-5489
+        run: |
+          mkdir -p reports
+          {
+            echo "competition: $SLUG"
+            echo "queried: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "=== LEADERBOARD ==="
+            kaggle competitions leaderboard -c "$SLUG" --show 2>&1 || true
+            echo "=== OUR SUBMISSIONS ==="
+            kaggle competitions submissions -c "$SLUG" --csv --page-size 200 2>&1 || true
+          } > reports/kaggle_snapshot.txt
+
+      - name: Commit snapshot
+        run: |
+          git config user.name "leaderboard-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add reports/kaggle_snapshot.txt
+          if git diff --cached --quiet; then
+            echo "no snapshot changes"
+          else
+            git commit -m "Update Kaggle leaderboard snapshot [skip ci]"
+            git push
+          fi
