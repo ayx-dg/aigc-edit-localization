@@ -1,1 +1,2 @@
 {"ref": "58710941", "score": 0.92209, "status": "SubmissionStatus.COMPLETE", "message": "Candidate: drop components <100px", "sha256": "c152e95040947623e2a9c2fc57825a25176e58f8683d081ef0782d081aca2acf", "time": "2026-11-22T08:11:28.236656+00:00"}
+{"ref": "58711343", "score": 0.92126, "status": "SubmissionStatus.COMPLETE", "message": "Postprocess: fill all holes", "sha256": "86f33defb80e328efe72274a727e33181b808215311465957d2b48fd02eb80bd", "time": "2026-11-22T08:20:37.217627+00:00"}
