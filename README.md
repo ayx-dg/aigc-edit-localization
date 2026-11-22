@@ -79,10 +79,14 @@ validates that fixed-name CSV, then submits it with the Kaggle CLI. To submit a
 new model, replace `submissions/best_submission.csv` with the new 2-column
 `ID,Predicted` CSV and push; other pushes do not trigger a submission.
 
-Add two repository secrets first:
+Add a Kaggle credential secret first (either option works):
 
 ```bash
-gh secret set KAGGLE_USERNAME   # value from kaggle.json
+# Preferred: Kaggle API token (KGAT_...)
+printf %s "$KAGGLE_API_TOKEN" | gh secret set KAGGLE_API_TOKEN
+
+# Or the classic key pair from kaggle.json:
+gh secret set KAGGLE_USERNAME
 gh secret set KAGGLE_KEY
 ```
 

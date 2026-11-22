@@ -2,7 +2,8 @@ name: Submit to Kaggle
 
 # A push to main triggers a Kaggle submission ONLY when the fixed-name file
 # submissions/best_submission.csv changes. Other pushes do not submit.
-# Kaggle credentials are repository secrets: KAGGLE_USERNAME and KAGGLE_KEY.
+# Kaggle credentials are repository secrets: KAGGLE_API_TOKEN (preferred), or
+# KAGGLE_USERNAME + KAGGLE_KEY.
 on:
   push:
     branches: [main]
@@ -42,14 +43,15 @@ jobs:
       - name: Check Kaggle credentials
         id: creds
         env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          if [ -n "$KAGGLE_USERNAME" ] && [ -n "$KAGGLE_KEY" ]; then
+          if [ -n "$KAGGLE_API_TOKEN" ] || { [ -n "$KAGGLE_USERNAME" ] && [ -n "$KAGGLE_KEY" ]; }; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::KAGGLE_USERNAME / KAGGLE_KEY secrets are not set; skipping submission."
+            echo "::warning::No Kaggle credentials secret is set; skipping submission."
           fi
 
       - name: Install Kaggle CLI
@@ -59,6 +61,7 @@ jobs:
       - name: Submit to Kaggle
         if: steps.creds.outputs.available == 'true'
         env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
           SUBMISSION: ${{ github.event.inputs.submission || 'submissions/best_submission.csv' }}

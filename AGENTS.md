@@ -118,13 +118,14 @@ $PY code/sparsevit/sliding_infer.py --webp-dir .../test_webp --out .../sw_patch_
 
 ```bash
 python scripts/submit_kaggle.py --dry-run                    # 只校验固定文件
-KAGGLE_USERNAME=xxx KAGGLE_KEY=yyy python scripts/submit_kaggle.py
+KAGGLE_API_TOKEN=KGAT_... python scripts/submit_kaggle.py
 ```
 
 自动提交通道：**固定文件名是 `submissions/best_submission.csv`**。只有该文件发生
 变更并 push 到 `main`，`.github/workflows/kaggle_submit.yml` 才会触发提交；
 其他文件（代码、报告、文档）的 push 不会提交 Kaggle。要提交新模型，先用新的
-2 列 `ID,Predicted` CSV 覆盖该固定文件再 push。需要先设置仓库 secrets
+2 列 `ID,Predicted` CSV 覆盖该固定文件再 push。需要先设置仓库 secret
+`KAGGLE_API_TOKEN`（推荐，值形如 `KGAT_...`），或同时设置
 `KAGGLE_USERNAME` 与 `KAGGLE_KEY`，并在 Kaggle 网页接受竞赛规则；secrets 缺失时
 workflow 只告警并跳过，不会使 push 失败。
 

@@ -7,10 +7,11 @@ The 5-column ``sample_submission.csv`` layout was tested and Kaggle returned
 
 Usage:
     python scripts/submit_kaggle.py --dry-run
-    KAGGLE_USERNAME=... KAGGLE_KEY=... python scripts/submit_kaggle.py
+    KAGGLE_API_TOKEN=KGAT_... python scripts/submit_kaggle.py
 
-Credentials are read from the ``KAGGLE_USERNAME`` and ``KAGGLE_KEY``
-environment variables (GitHub Actions secrets with the same names).
+Credentials are read from ``KAGGLE_API_TOKEN`` (preferred, token ``KGAT_...``),
+or from ``KAGGLE_USERNAME`` and ``KAGGLE_KEY``. In GitHub Actions these are
+repository secrets with the same names.
 """
 from __future__ import annotations
 
@@ -81,20 +82,24 @@ def main() -> None:
         print("dry run: no submission sent")
         return
 
+    token = os.environ.get("KAGGLE_API_TOKEN", "")
     username = os.environ.get("KAGGLE_USERNAME", "")
     key = os.environ.get("KAGGLE_KEY", "")
-    if not username or not key:
+    if not token and not (username and key):
         raise SystemExit(
-            "KAGGLE_USERNAME and KAGGLE_KEY must be set. In this repository "
-            "they are GitHub Actions secrets; see README.md."
+            "Set KAGGLE_API_TOKEN, or both KAGGLE_USERNAME and KAGGLE_KEY. "
+            "In this repository these are GitHub Actions secrets; see README.md."
         )
     kaggle = shutil.which("kaggle")
     if kaggle is None:
         raise SystemExit("kaggle CLI not found; install with `pip install kaggle`")
 
     env = os.environ.copy()
-    env["KAGGLE_USERNAME"] = username
-    env["KAGGLE_KEY"] = key
+    if token:
+        env["KAGGLE_API_TOKEN"] = token
+    else:
+        env["KAGGLE_USERNAME"] = username
+        env["KAGGLE_KEY"] = key
     cmd = [kaggle, "competitions", "submit", "-c", args.slug,
            "-f", str(path), "-m", args.message]
     print("submitting:", args.slug, path.name)
