@@ -45,6 +45,8 @@ jobs:
             kaggle competitions leaderboard -c "$SLUG" --show 2>&1 || true
             echo "=== OUR SUBMISSIONS ==="
             kaggle competitions submissions -c "$SLUG" --csv --page-size 200 2>&1 || true
+            echo "=== SUBMISSION LIMITS ==="
+            kaggle competitions submission-limits -c "$SLUG" 2>&1 || true
           } > reports/kaggle_snapshot.txt
 
       - name: Archive selected past submissions
