@@ -1,24 +1,25 @@
-\documentclass[11pt]{article}
-\usepackage{amsmath,graphicx,booktabs,longtable,hyperref}
-\usepackage[margin=2.2cm]{geometry}
+\documentclass[10pt]{article}
+\usepackage{amsmath,graphicx,booktabs,hyperref}
+\usepackage[margin=1.7cm]{geometry}
 \graphicspath{{figures/}}
 \title{What Drives Performance in AIGC Edited-Region Localization?}
-\author{SparseViT experiments, error localisation, and comparison with the historical native-resolution pipeline}
+\author{SparseViT experiments, error localisation, \\ and comparison with the historical native-resolution pipeline}
 \date{November 2026}
 \begin{document}
 \maketitle
 \section{Executive conclusion}
-\textbf{Claim.} Performance in this task is governed primarily by \emph{pixel-scale fidelity} and by \emph{validation aligned with the competition metric}, not by the choice of encoder. The historical native-resolution pipeline reaches public scores of $0.90$--$0.92$ with ordinary U-Net architectures, while our SparseViT trained on square-downscaled whole images reaches only $0.65764$. Preserving original pixels in $512\times512$ crops raises SparseViT to $0.77279$, and combining the global and native views raises it to $0.80870$. The remaining gap is highly non-uniform: it is concentrated on small and low-contrast edits, which are exactly the evidence destroyed by whole-image downscaling.
-Concretely, the public Score improved from 0.65764 (global SparseViT) to 0.77279 (native-patch SparseViT) and then to \textbf{0.80870} (weighted two-view ensemble). On the 500-image validation set, images with ground-truth edited area below $1\%$ score $0.31$--$0.66$, whereas images with more than $5\%$ edited area score $0.87$. On the test set, the historical $0.92$ model and our ensemble agree to within a few percent of predicted area on images with substantial edits, but differ by up to $72\times$ in predicted area when the edited region is tiny. The practical lesson is therefore architectural in the data sense: keep native pixels, select checkpoints with full-image official Score, and use complementary views; changing the sparse-attention pattern is a second-order effect.
-\section{Evidence from the public leaderboard}
-Table~\ref{tab:hist} lists the historical submissions and Table~\ref{tab:ours} our submissions. Fig.~\ref{fig:scores} makes the progression visible. The historical family was produced by the native-crop code in {\tt code/historical\_aigc/}; the earlier downscaled ResNet34 U-Net sanity project produced only an all-edited baseline, not a scoring model.
-\begin{table}[htbp]\centering
-\caption{Historical public submissions (native-resolution pipeline family).}
+\textbf{Claim.} Pixel-scale fidelity and full-image, metric-aligned checkpoint selection determine performance here; encoder choice is second-order. The historical native-crop U-Net reached a public Score of $0.92213$ (ref $58415875$) with an ordinary architecture, while SparseViT trained on square-downscaled whole images reached $0.65764$. Native $512\times512$ crops raised SparseViT to $0.77279$, and a global/native two-view ensemble reached $0.80870$. A teacher--hard probability fusion with TTA8, overlap 64, and hysteresis postprocessing then reached \textbf{0.93024} (ref $58747907$). The top-3 cutoff is $0.95843$; the gap is $0.02819$. With $0.93941$ in fourth place, the current entry sits around seventh.
+
+The new result also changes the diagnosis. On the 56-image clean-validation split the selected fusion scores $0.953140$ (mIoU $0.947178$, recall $0.967050$), yet an oracle that picks the better branch per pixel scores only $0.95493$. Inside the teacher/hard family the remaining headroom is $0.00179$. Three frozen-DINOv2 variants failed their gates (Section~\ref{sec:dino}). The next gain has to come from a different signal, so we train a native-patch probability refiner on true masks and keep the canonical submission unchanged until Kaggle confirms an improvement.
+
+\section{Score progression and the leaderboard}
+\begin{table}[htbp]\centering\footnotesize
+\caption{Historical public submissions from the native-resolution pipeline.}
 \label{tab:hist}
-\begin{tabular}{llp{10cm}}
+\begin{tabular}{llr}
 \toprule Score & Ref & Description \\
 \midrule
-0.92213 & 58415875 & native-crop family, best submission \\
+0.92213 & 58415875 & native-crop family, best \\
 0.92114 & 58369543 & native-crop family \\
 0.92056 & 58373393 & native-crop family \\
 0.91484 & 58346197 & native-crop family \\
@@ -26,49 +27,33 @@ Table~\ref{tab:hist} lists the historical submissions and Table~\ref{tab:ours} o
 \bottomrule
 \end{tabular}
 \end{table}
-\begin{table}[htbp]\centering
-\caption{Our Kaggle submissions on the 500 public test images.}
+\begin{table}[htbp]\centering\footnotesize
+\caption{Our submissions and the canonical fusion.}
 \label{tab:ours}
 \begin{tabular}{llrr}
-\toprule Version & Method & Threshold & Public Score \\
+\toprule Version & Method & Threshold & Score \\
 \midrule
 v1 & Global 512 cache & 0.20 & 0.65764 \\
 v2 & Global 512 sliding & 0.16 & 0.61291 \\
 v3 & Native 512 patches + sliding & 0.86 & 0.77279 \\
 v4 & Equal-weight ensemble & 0.48 & 0.80113 \\
 v5 & Weighted ensemble (0.4/0.6) & 0.59 & 0.80870 \\
+final & Teacher+hard fusion, TTA8/ov64 & 0.92/0.38 & 0.93024 \\
 \bottomrule
 \end{tabular}
 \end{table}
+Two pipeline bugs were identified before the later runs. A five-column upload shaped like \texttt{sample\_submission.csv} returned \texttt{SubmissionStatus.ERROR}; the accepted format is two columns \texttt{ID,Predicted}. Submission v2 thresholded uint8 probability maps without dividing by 255 and predicted almost every pixel as edited. Fig.~\ref{fig:scores} shows the progression.
+
 \begin{figure}[htbp]\centering
-\includegraphics[width=.8\linewidth]{fig_kaggle_scores}
+\includegraphics[width=.60\linewidth]{fig_kaggle_scores}
 \caption{Kaggle public Score by submission.}
 \label{fig:scores}
 \end{figure}
-Two negative results are informative. The five-column upload matching {\tt sample\_submission.csv} was rejected by Kaggle ({\tt SubmissionStatus.ERROR}), so the accepted format is two columns {\tt ID,Predicted}. Submission v2 thresholded uint8 probability maps without dividing by 255, effectively predicting almost every pixel as edited; this is a pipeline bug, not evidence about the model.
-\section{Where the errors are: validation evidence}
-\begin{figure}[htbp]\centering
-\includegraphics[width=.95\linewidth]{fig_val_errors}
-\caption{Worst validation images for the best ensemble. Green = ground truth, red = prediction. Each row shows the image, the ground-truth overlay, the global model, and the ensemble.}
-\label{fig:valerr}
-\end{figure}
-Fig.~\ref{fig:valerr} shows the five lowest-scoring validation images. In every case the edited area is small ($0.1\%$--$3.7\%$ of pixels) and the ensemble produces an empty or nearly empty mask, so the per-image Score is exactly zero because one mask is empty. This is the dominant failure mode of the current pipeline: it is not that boundaries are slightly misplaced, but that small edits are lost entirely.
-\begin{table}[htbp]\centering
-\caption{Per-image Score of the best ensemble by ground-truth edited area (500 validation images).}
-\begin{tabular}{lrr}
-\toprule Edited area & Images & Mean Score \\
-\midrule
-0-0.1\% & 3 & 0.3115 \\
-0.1-1\% & 85 & 0.6587 \\
-1-5\% & 168 & 0.7757 \\
->5\% & 244 & 0.8746 \\
-\bottomrule
-\end{tabular}
-\end{table}
-The gradient is steep: $0.31$ for near-empty edits, $0.66$ below $1\%$, and $0.87$ above $5\%$. The correlation between edited fraction and Score is only $0.19$ because many large-edit images are also difficult, but the area-stratified means are unambiguous. Tables~\ref{tab:comp} and the component analysis explain why: the global model merges small edited regions into a few large blobs.
-\begin{table}[htbp]\centering
-\caption{Connected-component structure on validation masks (mean per image; ``tiny'' = components smaller than 20 pixels at $512\times512$).}
-\label{tab:comp}
+
+\section{Residual errors are local, not global}
+On the 500-image validation set used for SparseViT, mean Score falls from $0.8746$ for edits above $5\%$ of pixels to $0.6587$ below $1\%$ and $0.3115$ below $0.1\%$. The global model predicts $1.83$ connected components per image against $4.22$ in the ground truth, with a median component more than twice as large; the native-patch model predicts $4.01$.
+\begin{table}[htbp]\centering\footnotesize
+\caption{Connected-component structure on validation masks (mean per image; ``tiny'' $<20$ pixels at $512\times512$).}
 \begin{tabular}{lrrrr}
 \toprule Mask & Components & Median size & Tiny comps & Edited fraction \\
 \midrule
@@ -79,208 +64,101 @@ Ensemble v5 & 2.96 & 3948 & 0.84 & 0.109 \\
 \bottomrule
 \end{tabular}
 \end{table}
-Ground truth contains on average $4.22$ components per image, including $1.19$ tiny ones. The global model predicts only $1.83$ components with a median size more than twice the ground truth: small edits are absorbed into large regions. The native-patch model is much closer ($4.01$ components, $1.17$ tiny), and the ensemble is intermediate. This is direct evidence that native pixels recover edit structure that downscaling removes.
-\section{Threshold selection and the mIoU/mRecall trade-off}
+Fig.~\ref{fig:valerr} gives the qualitative counterpart: the five lowest-scoring validation images, with ground truth in green and prediction in red. Each has an edited area of $0.1\%$--$3.7\%$, and the ensemble returns an empty or nearly empty mask, so the per-image Score is exactly zero when one mask is empty. Downscaling removes small edits by merging them into large blobs.
 \begin{figure}[htbp]\centering
-\includegraphics[width=.85\linewidth]{fig3_miou_recall}
-\caption{mIoU versus mRecall across configurations; colour encodes Score.}
-\label{fig:tradeoff}
+\includegraphics[width=.80\linewidth]{fig_val_errors}
+\caption{Worst validation images: image, ground-truth overlay, global model, and ensemble (left to right).}
+\label{fig:valerr}
 \end{figure}
-Since $\mathrm{Score}=0.7\,\mathrm{mIoU}+0.3\,\mathrm{mRecall}$, iso-score lines have slope $-0.7/0.3\approx-2.33$. The configurations split into two regimes: dp0 obtains a high mRecall ($0.818$) but only mIoU $0.456$; bs8 and noamp obtain mIoU $0.49$--$0.51$ with slightly lower recall. Maximising recall alone is not optimal: predicting everything as positive pushes recall towards 1 but collapses mIoU to the edited-area prior. The best configurations lie in the upper-right region with high mIoU and undamaged recall. The same logic sets the final threshold: the weighted ensemble peaks at $0.59$ on full-image validation, and the historical pipeline sweeps the official Score directly instead of using Dice.
-\section{Cross-pipeline disagreement on the test set}
-Because the test set has no public ground truth, we compare the two best submissions directly. Decoding both RLE files gives per-image masks for all $500$ test images. The mean mask IoU between the historical $0.92$ model and our ensemble is 0.7851 (median 0.8976). Their mean predicted edited fractions are 0.1139 and 0.1128, both close to the training prior $0.1164$, so neither model is exploiting a trivial all-positive or all-negative strategy.
-\begin{table}[htbp]\centering
-\caption{Predicted-area ratio by edited-area bin, using the historical model as reference.}
+
+The final fusion has a different failure profile. Its predicted mean edited area on clean validation is $0.10605$ against $0.10661$ in the ground truth, and on the test set it is $0.11456$. Global area calibration is therefore not the problem. The worst clean-validation cases are small or low-contrast edits:
+\begin{table}[htbp]\centering\footnotesize
+\caption{Worst clean-validation images for the final fusion. ``Oracle'' is the best per-image threshold on the same probability map.}
 \begin{tabular}{lrrrr}
-\toprule Historical area & Images & Historical mean & New mean & New / old \\
+\toprule ID & GT area & Score & Oracle & Comment \\
 \midrule
-$<0.1\%$ & 10 & 0.0004 & 0.0257 & 64.25$\times$ \\
-$0.1$--$1\%$ & 65 & 0.0055 & 0.0197 & 3.58$\times$ \\
-$1$--$5\%$ & 154 & 0.0269 & 0.0272 & 1.01$\times$ \\
-$>5\%$ & 271 & 0.1935 & 0.1871 & 0.97$\times$ \\
+003549 & 0.0265 & 0.7063 & 0.803 & threshold/coverage \\
+003560 & 0.0121 & 0.7781 & 0.724 & small edit \\
+004315 & 0.0199 & 0.7793 & 0.804 & boundary loss \\
+003501 & 0.1052 & 0.7870 & 0.839 & ranking \\
+000810 & -- & 0.8384 & -- & persistent failure \\
 \bottomrule
 \end{tabular}
 \end{table}
-The disagreement is strongly area-dependent: for images where the historical model finds less than $0.1\%$ edited pixels, our ensemble predicts $72\times$ more area; above $1\%$ the two models agree in total area to within $3\%$. The worst per-image IoU values are all tiny-edit cases (historical area $0.02\%$--$1.4\%$), where one model predicts an empty mask and the other does not. This mirrors the validation finding and locates the residual error precisely.
-The masks also differ in texture. The historical model averages 9.5 connected components per image (6.7 smaller than 20 pixels), while our ensemble averages 2.96 components (0.91 tiny). The historical masks are far more fragmented. Since validation ground truth has $4.22$ components and $1.19$ tiny ones, part of this fragmentation is plausibly genuine fine edit structure; without test ground truth we cannot separate true small edits from false-positive speckles, but the direction of the difference is consistent with the recall advantage of the native-crop family.
+For image $003549$, mean probability is $0.654$ on ground-truth pixels and $0.001$ on background. Decoding the submitted CSV and comparing it with the saved mask cache gives mean IoU $0.99997$, so RLE conversion does not contribute to these errors.
+
+\section{Error analysis during training}
+The full-data SparseViT run reached its best Score of $0.6690$ at epoch 9, with validation loss falling from $0.7164$ to $0.4740$ and training loss from $0.7964$ to $0.2493$. The last epoch was $0.0023$ below the best; a 20-epoch control on the 500/100 subset scored $0.5446$ against $0.5498$ for 10 epochs. With 5620 optimiser steps in 10 epochs, longer schedules added overfitting rather than coverage.
+
+At the tuned threshold $0.20$, the pixel-level confusion matrix over 500 validation images is TP $=13{,}178{,}024$, FP $=3{,}658{,}621$, FN $=2{,}126{,}852$, TN $=112{,}108{,}503$, giving precision $0.7827$, recall $0.8610$, and specificity $0.9684$. The global branch predicts $13.3\%$ edited pixels against $11.7\%$ in the ground truth, so its false positives come from area over-prediction; the patch branch matches the prior at $11.8\%$. Fig.~\ref{fig:area} shows that Score falls mainly on small-edit images, where a fixed threshold either floods the mask or loses it entirely.
 \begin{figure}[htbp]\centering
-\includegraphics[width=.95\linewidth]{fig_test_disagreement}
-\caption{Largest test-set disagreements. Green = historical $0.92$ model, red = SparseViT v5, white = agreement.}
+\includegraphics[width=.62\linewidth]{fig_area_vs_score}
+\caption{Per-image Score versus ground-truth edited fraction for three SparseViT views.}
+\label{fig:area}
 \end{figure}
-These figures and tables are the most direct answer to ``which test images are wrong'': we cannot know the true labels, but the images with near-empty masks in one model and small-but-nonempty masks in the other are the highest-probability error cases, and their IDs are stored in {\tt report/disagreement\_test.json}.
-\section{Why the historical pipeline wins: a code-level comparison}
-The two codebases differ in five systematic ways. None of them requires a stronger encoder; together they explain the $0.11$ Score gap.
-\begin{table}[htbp]\centering
-\caption{Pipeline properties inferred from the two codebases.}
-\begin{tabular}{p{2.6cm}p{5.6cm}p{5.6cm}}
-\toprule Property & Historical native pipeline & This SparseViT pipeline \\
+
+\section{The current probability family is saturated}
+\label{sec:saturation}
+\begin{table}[htbp]\centering\footnotesize
+\caption{Clean-validation oracle bounds on 56 images.}
+\begin{tabular}{lr}
+\toprule Rule & Score \\
 \midrule
-Input scale & Original-pixel $512\times512$ crops, no resizing ({\tt aigc/native.py:1,22-23}) & Whole image resized to square $512\times512$ ({\tt dataset.py:77-79}); later native crops added \\
-Crop sampling & Half of crops centred on edited pixels & SparseViT global: none; patch stage: positive + hard-negative crops \\
-Validation & Full-resolution tiled probability maps, exact official Score and threshold sweep every epoch ({\tt aigc/native.py:81-108}) & Global: cache-based Score; patch stage: patch-level Score, full-image check only afterwards \\
-Optimisation & AdamW, AMP, gradient clipping, EMA, cosine decay, optional teacher--student distillation & AdamW, 10 epochs global / 5 epochs patch, no EMA or distillation \\
-Inference & Overlapping tiles, Hann blending, 4-way flip TTA & Same Hann tiling; single view; two-view probability averaging added later \\
-Architecture & EfficientNet-B0 U-Net or tiny GroupNorm U-Net & SparseViT (AAAI2025) with official pretrained weights \\
+Teacher + hysteresis & 0.95008 \\
+Hard + hysteresis & 0.93977 \\
+Current fusion & 0.953140 \\
+Oracle per-image branch choice & 0.95387 \\
+Oracle per-pixel branch choice & 0.95493 \\
 \bottomrule
 \end{tabular}
 \end{table}
-Two observations isolate the mechanism. First, a descriptive historical submission explicitly labelled ``EfficientNet-B0 RGB native512 epoch26 single-view baseline'' reached $0.90638$: an ordinary U-Net is sufficient once native crops and full-image validation are used. Second, our own patch stage preserved pixels and recovered more than $0.11$ Score over the global model, but it selected the checkpoint by patch-level Score ($0.865$) while the full-image result was only $0.77279$. Metric/target alignment is therefore as important as resolution: optimising and selecting on the same full-image objective is what allows small edits to survive into the final model.
-\section{Implications and next experiments}
-\begin{enumerate}
-\item Train SparseViT with native edit-centred crops \emph{and} evaluate every epoch on full images with the official Score, using the existing {\tt validate\_native} routine; select the checkpoint by that number, not by patch-level Score.
-\item Adopt the mature optimisation recipe from the historical pipeline: EMA, cosine decay, longer schedules, and flip TTA. These are orthogonal to the encoder.
-\item Distil from the historical native teacher into SparseViT, or simply fuse the two models at probability level; the test-set disagreement analysis shows the views carry complementary information, especially on small edits.
-\item Calibrate the global branch: at threshold $0.20$ it predicts $13.3\%$ edited pixels versus $11.7\%$ in the ground truth, whereas the patch model matches the prior ($11.8\%$). Recalibrating before averaging should reduce false positives.
-\end{enumerate}
-\section{Methods and configuration (supporting record)}
-\subsection{Task and metric}
-For every image we predict a binary mask (1 = AI-edited pixel, 0 = unedited). Metrics are computed per image and then averaged:
-\begin{equation}
-\mathrm{IoU}=\frac{TP}{TP+FP+FN},\qquad \mathrm{Recall}=\frac{TP}{TP+FN},\qquad \mathrm{Score}=0.7\,\mathrm{mIoU}+0.3\,\mathrm{mRecall}.
-\end{equation}
-If both masks are empty, IoU and Recall are 1; if exactly one is empty, both are 0. Training uses BCE+Dice loss and the threshold is swept on validation to maximise Score.
-\subsection{Hyperparameters and terminology}
-\begin{longtable}{lll}
-\toprule Term & English & Description / value in this work \\
+The per-pixel oracle exceeds the selected fusion by $0.00179$. No weighted average of the same two probability maps can close a $0.02819$ gap. The experiments below all failed to move the clean-validation proxy above $0.953140$.
+\begin{table}[htbp]\centering\footnotesize
+\caption{Negative results after the $0.92213$ baseline. Scores are Kaggle public Scores unless marked otherwise.}
+\begin{tabular}{llr}
+\toprule Intervention & Observation & Outcome \\
 \midrule
-Batch size & Batch Size & 4 or 8 (8 for the final run) \\
-Learning rate & Learning Rate & $1\times10^{-4}$ with cosine decay \\
-Weight decay & Weight Decay & $1\times10^{-4}$ \\
-Drop path & Drop Path & SparseViT stochastic depth $=0.2$ \\
-Epochs & Epochs & 10 global / 5 patch (one control used 20) \\
-Best epoch & Best Epoch & Epoch with the highest validation Score \\
-Training samples & Train Samples & 500 / 800 / 4500 global; 9000 patches \\
-Sparsity config & Sparsity Config & {\tt s\_blocks3} / {\tt s\_blocks4} \\
-Threshold & Threshold & Chosen by validation Score; $0.59$ for v5 \\
-Seed & Seed & 42 for all runs \\
-\bottomrule
-\end{longtable}
-\subsection{Master experiment table}
-\begin{longtable}{llrrrrrrrrrrl}
-\caption{Best results of all SparseViT experiments (checkpoint selected by Score).}\\
-\toprule
-Exp. & S3 & S4 & BS & Samples & Score & mIoU & mRecall & Dice & Thr & BestEp & Time & Seed \\
-\midrule\endfirsthead
-\toprule Exp. & S3 & S4 & BS & Samples & Score & mIoU & mRecall & Dice & Thr & BestEp & Time & Seed \\
-\midrule\endhead
-\bottomrule\endlastfoot
-FINAL-4500 & 8,4,2,1 & 2,1 & 8 & 4500/500 & 0.6690 & 0.6286 & 0.7631 & 0.6991 & 0.20 & 9 & 23393 & 42 \\
-Official (baseline) & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5498 & 0.4549 & 0.7715 & 0.5423 & 0.15 & 4 & 346 & 42 \\
-bs2 & 8,4,2,1 & 2,1 & 2 & 500/100 & 0.5543 & 0.4859 & 0.7137 & 0.5657 & 0.20 & 10 & 916 & 42 \\
-bs8 & 8,4,2,1 & 2,1 & 8 & 500/100 & 0.5704 & 0.5066 & 0.7191 & 0.5873 & 0.20 & 10 & 3054 & 42 \\
-data800 & 8,4,2,1 & 2,1 & 4 & 800/160 & 0.5595 & 0.4872 & 0.7280 & 0.5759 & 0.10 & 6 & 786 & 42 \\
-dp0 & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5645 & 0.4557 & 0.8184 & 0.5384 & 0.10 & 4 & 333 & 42 \\
-dp04 & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5591 & 0.4740 & 0.7578 & 0.5621 & 0.10 & 9 & 764 & 42 \\
-ep20 & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5446 & 0.4784 & 0.6989 & 0.5587 & 0.10 & 20 & 1699 & 42 \\
-lr2e4 & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5085 & 0.4359 & 0.6781 & 0.5160 & 0.25 & 10 & 845 & 42 \\
-lr5e5 & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5597 & 0.4784 & 0.7493 & 0.5539 & 0.15 & 5 & 424 & 42 \\
-noamp & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5660 & 0.4942 & 0.7334 & 0.5751 & 0.15 & 8 & 1030 & 42 \\
-warmup50 & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5356 & 0.4391 & 0.7606 & 0.5232 & 0.10 & 4 & 338 & 42 \\
-wd0 & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5392 & 0.4631 & 0.7167 & 0.5472 & 0.10 & 7 & 590 & 42 \\
-wd1e3 & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5565 & 0.4864 & 0.7202 & 0.5749 & 0.10 & 7 & 593 & 42 \\
-combo\_sp & 4,2,1,1 & 1,1 & 8 & 500/100 & 0.5361 & 0.4399 & 0.7606 & 0.5215 & 0.10 & 4 & 1814 & 42 \\
-sp\_coarse & 4,2,1,1 & 1,1 & 4 & 500/100 & 0.5586 & 0.4869 & 0.7260 & 0.5737 & 0.20 & 10 & 892 & 42 \\
-sp\_fine & 16,8,4,2 & 4,2 & 4 & 500/100 & 0.5306 & 0.4653 & 0.6831 & 0.5508 & 0.30 & 7 & 562 & 42 \\
-sp\_vfine & 32,16,8,4 & 8,4 & 4 & 500/100 & 0.5153 & 0.4346 & 0.7036 & 0.5172 & 0.10 & 9 & 718 & 42 \\
-\end{longtable}
-The final full-data run (4500/500, batch 8, official sparsity) reached a best \textbf{Score of 0.6690} (mIoU 0.6286, mRecall 0.7631, Dice 0.6991, threshold 0.20) at epoch 9, with total training time 6.50 h.
-\subsection{Sparsity-ratio experiments}
-\begin{table}[htbp]\centering
-\caption{Sparsity comparison (batch 4, 500/100, 10 epochs, official pretrained weights unless noted).}
-\begin{tabular}{llrrrr}
-\toprule Experiment & S3 & S4 & Batch Size & Samples & Score \\
-\midrule
-sp\_coarse & 4,2,1,1 & 1,1 & 4 & 500/100 & 0.5586 \\
-Official & 8,4,2,1 & 2,1 & 4 & 500/100 & 0.5498 \\
-sp\_fine & 16,8,4,2 & 4,2 & 4 & 500/100 & 0.5306 \\
-sp\_vfine & 32,16,8,4 & 8,4 & 4 & 500/100 & 0.5153 \\
+Global/adaptive hysteresis, threshold sweeps & clean-val $0.953140$ & no gain \\
+Component filtering, hole filling, closing, smoothing & Kaggle $0.92114$--$0.92209$ & below baseline \\
+TTA16, 640px tiles, cross-overlap, 6-way/vote & clean-val $\le 0.953140$ & no gain \\
+Pseudo-label self-training v2 & patch $0.91542$; fusion $0.953140$ & no gain \\
+Full fine-tune \texttt{out\_ft\_full} & $0.91416$ vs hard student $0.92128$ & worse \\
+From-scratch wide U-Net & below teacher family & rejected \\
 \bottomrule
 \end{tabular}
 \end{table}
-The official sparsity is close to optimal. Finer tokens consistently hurt because the pretrained sparse-coding pattern depends on the original block size; coarser blocks gain only $+0.0088$, far below the $+0.0206$ from increasing batch size.
-\subsection{Native-patch training}
-Training from official SparseViT weights on 9000 lossless native patches (1000 validation patches, 5 epochs, batch 8) reached patch-level Score 0.8655 at epoch 4 (mIoU 0.8552, mRecall 0.8895). This number is not directly comparable with whole-image validation: a validation sample is a single crop with about $20\%$ edited pixels versus about $12\%$ for a whole image.
-\subsection{Full-resolution sliding-window inference}
-\begin{table}[htbp]\centering
-\caption{Validation threshold sweep on saved sliding-window probability maps.}
-\begin{tabular}{lrrrr}
-\toprule View & Best threshold & mIoU & mRecall & Score \\
+The proxy-to-Kaggle mapping is noisy: a clean-validation score of $0.93537$ mapped to $0.92213$, while $0.95314$ mapped to $0.93024$. A candidate needs a clear proxy gain before it uses submission quota.
+
+\section{A new representation: literature and DINO tests}
+\label{sec:dino}
+Four lines of prior work motivated a representation change. DEAL-300K/MFPT (arXiv:2511.23377) reports that frozen visual foundation models plus frequency prompts improve diffusion-edit localisation, with DINOv2 stronger than EVA02. DinoLizer (arXiv:2511.20722) pairs frozen DINOv2 with a light head for inpainting detection. X-Edit (arXiv:2505.11753) uses inversion residuals and boundary-focused relevance, but needs captions and expensive inversion. SegFix (arXiv:2007.04269) shows that boundary pixels are less reliable than interior pixels and that model-agnostic boundary correction helps.
+
+We tested DINOv2-S/14 in three forms on 448 native validation patches:
+\begin{table}[htbp]\centering\footnotesize
+\caption{DINO negative results against the historical teacher baseline.}
+\begin{tabular}{lrr}
+\toprule Variant & Patch-val Score & mIoU \\
 \midrule
-Global 512 & 0.16 & 0.6356 & 0.7722 & 0.6766 \\
-Native sliding & 0.50 & 0.3613 & 0.7455 & 0.4765 \\
-Average of both & 0.50 & 0.6772 & 0.7328 & 0.6939 \\
+Standalone DINO-HF + light decoder & 0.46513 & 0.2359 \\
+Frozen DINO + $1\times1$ linear probe & 0.47829 & 0.2827 \\
+DINO injected into teacher bottleneck & 0.90527 & -- \\
+Teacher baseline & 0.90953 & 0.8994 \\
 \bottomrule
 \end{tabular}
 \end{table}
-Native sliding with the globally trained model is weak ($0.4765$) because of the scale mismatch; the patch-trained model reaches $0.7648$, and averaging the two views on whole-image validation reaches $0.7923$ before weight tuning.
-\section{Reproducibility and submission format}
-The commands below assume a fresh machine and a dataset already supplied by the course. They use only relative paths and \texttt{AIGC\_*} variables, so no machine-specific setup is required to reproduce the analysis. Python 3.11 and \texttt{uv} pin the environment:
-\begin{verbatim}
-curl -LsSf https://astral.sh/uv/install.sh | sh     # Linux/macOS
-# Windows PowerShell: irm https://astral.sh/uv/install.ps1 | iex
-git clone https://github.com/ayx-dg/aigc-edit-localization.git
-cd aigc-edit-localization
-uv venv --python 3.11 .venv && source .venv/bin/activate
-uv pip install -r requirements-report.txt   # figures and report only
-uv pip install -r requirements.txt          # full training/inference
-\end{verbatim}
-Rebuilding the PDF needs only the committed JSON, figure and PNG evidence plus \texttt{pdflatex}; no GPU is involved:
-\begin{verbatim}
-python report/make_report.py
-cd report && pdflatex -interaction=nonstopmode report.tex \\
-  && pdflatex -interaction=nonstopmode report.tex
-\end{verbatim}
-To retrain, set the data and checkpoint locations and run the full pipeline. The two sliding-window views are combined at weights $0.4/0.6$ and thresholded at $0.59$ to reproduce the best configuration:
-\begin{verbatim}
-export AIGC_DATA_DIR=/path/to/provided/dataset
-export AIGC_WORKDIR=$PWD/work
-export AIGC_PATCH_DIR=$AIGC_WORKDIR/patches
-export AIGC_SPARSE_CKPT=/path/to/official_sparsevit_checkpoint.pth
-python code/sparsevit/make_patches.py --data-dir $AIGC_DATA_DIR --out-dir $AIGC_PATCH_DIR
-python code/sparsevit/train.py --cache-dir $AIGC_DATA_DIR/cache --out-dir $AIGC_WORKDIR/out_global \
-  --arch sparsevit --encoder-weights $AIGC_SPARSE_CKPT --size 512 \\
-  --batch-size 8 --epochs 10 --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42
-python code/sparsevit/train.py --patch-dir $AIGC_PATCH_DIR --out-dir $AIGC_WORKDIR/out_patch \
-  --arch sparsevit --encoder-weights $AIGC_SPARSE_CKPT --size 512 \\
-  --batch-size 8 --epochs 5 --lr 1e-4 --weight-decay 1e-4 --drop-path 0.2 --seed 42
-python code/sparsevit/sliding_infer.py --webp-dir $AIGC_DATA_DIR/test/images \
-  --out $AIGC_WORKDIR/sw_global --ckpt $AIGC_WORKDIR/out_global/best.pt \\
-  --mode global --overlap 0.5 --weight hann --save-probs
-python code/sparsevit/sliding_infer.py --webp-dir $AIGC_DATA_DIR/test/images \
-  --out $AIGC_WORKDIR/sw_native --ckpt $AIGC_WORKDIR/out_patch/best.pt \\
-  --mode native --overlap 0.5 --weight hann --save-probs
-python scripts/make_ensemble_probs.py $AIGC_WORKDIR/sw_global/test_probs_512.npz \
-  $AIGC_WORKDIR/sw_native/test_probs_512.npz $AIGC_WORKDIR/ensemble.npz \\
-  --w-global 0.4 --w-native 0.6
-python code/sparsevit/make_submission_from_probs.py $AIGC_WORKDIR/ensemble.npz 0.59 \
-  $AIGC_WORKDIR/candidate.csv
-\end{verbatim}
-Predicted probabilities are bilinearly upsampled to the original $H\times W$, thresholded, and encoded as column-major (Fortran order), 1-based RLE. A two-column file is required:
-\begin{verbatim}
-ID,Predicted
-005001,120 30 500 20
-005002,
-\end{verbatim}
-An empty mask is an empty string. Saved probability maps are uint8 in $[0,255]$ and must be divided by 255 before thresholding. Report artefacts, error JSON files and archived submissions all live inside the repository. Contributions use forks and pull requests: proposed CSVs are placed under \texttt{submissions/candidates/} and the maintainer copies the accepted candidate to the fixed handoff file \texttt{submissions/best\_submission.csv}; no contributor needs credentials.
-\appendix
-\section{Training dynamics and pixel-level errors}
-\begin{figure}[htbp]\centering
-\includegraphics[width=.92\linewidth]{fig_curves_final}
-\caption{FINAL-4500 per-epoch train/validation loss, Dice/mIoU/mRecall, Score and threshold.}
-\end{figure}
-\begin{figure}[htbp]\centering
-\includegraphics[width=.8\linewidth]{fig_convergence_compare}
-\caption{Score convergence curves (x-axis: epoch).}
-\end{figure}
-Validation loss changes from 0.7164 to 0.4740; training loss from 0.7964 to 0.2493. The best epoch is 9, and the last epoch differs by -0.0023 in Score. On the 500/100 subset, 20 epochs gave Score 0.5446, below the 10-epoch baseline of 0.5498. With 4500 training images, 10 epochs already corresponds to 5620 optimiser steps, so extending to 20 offers limited benefit and more overfitting risk.
-\begin{figure}[htbp]\centering
-\includegraphics[width=.55\linewidth]{fig_confusion_matrix}
-\caption{Normalised confusion matrix on validation (rows = ground truth).}
-\end{figure}
-At the tuned threshold 0.20, the pixel-level confusion matrix over the validation set is TP=13,178,024, FP=3,658,621, FN=2,126,852, TN=112,108,503. Precision=0.7827, Recall=0.8610, Specificity=0.9684.
-\begin{figure}[htbp]\centering
-\includegraphics[width=.8\linewidth]{fig_area_vs_score}
-\caption{Per-image Score versus ground-truth edited fraction for the three SparseViT views.}
-\end{figure}
-The global model predicts $13.3\%$ edited pixels against $11.7\%$ ground truth, a systematic over-prediction that lowers mIoU. Lowering the threshold raises recall and false positives together; the threshold must be chosen by Score, not by recall.
+The standalone decoder produced nearly constant probabilities (mean $0.329$, standard deviation $0.086$), and the linear probe isolated the representation problem: frozen DINO tokens carry little localisation signal for this dataset. Injection into the teacher lost $0.00426$ against the baseline. We stopped this direction; the remaining error is a local texture and boundary problem that the native U-Net already captures.
+
+\section{Current pipeline and the refiner experiment}
+The canonical recipe is fixed: teacher weight $0.4$, hard-student weight $0.6$, TTA8, overlap 64, hysteresis high $0.92$ and low $0.38$, and fallback threshold $0.5$. The fallback cut empty test masks from 11 to 3 without changing clean-validation Score.
+
+The refiner uses three verified facts: the historical checkpoint reproduces the teacher cache exactly (mean absolute difference $0$), cached masks are true ground truth (patch/crop IoU $0.94$--$0.98$), and teacher probabilities can be regenerated with the same TTA8 settings. Its input is the RGB patch, the teacher probability, FFT high-pass and Sobel maps, and the probability-gradient magnitude. A width-16 U-Net predicts a refined probability from the true patch mask under BCE plus Dice loss on 9000 training patches, with 448 validation patches. The refined map replaces the teacher term in the existing $0.4/0.6$ fusion.
+
+Promotion requires patch-validation Score above $0.90953$, clean-validation fusion above $0.953140$, a dry-run passing the two-column RLE check, and a Kaggle submission strictly above $0.93024$. Until then the canonical file stays \texttt{submissions/best\_submission.csv}.
+
+\section{Metric and reproduction}
+For each image, $\mathrm{IoU}=TP/(TP+FP+FN)$, $\mathrm{Recall}=TP/(TP+FN)$, and $\mathrm{Score}=0.7\,\mathrm{mIoU}+0.3\,\mathrm{mRecall}$, averaged over images. Two empty masks count as 1; exactly one empty mask counts as 0. Probability caches are uint8 in $[0,255]$ and are divided by 255 before thresholding. RLE is column-major, 1-based, at original image dimensions; an empty mask is an empty string.
+
+Rebuilding the PDF uses the committed JSON and figure evidence with \texttt{pdflatex}; full training and inference need CUDA and the supplied data. Checkpoint selection must use the full-image official Score, not patch-level Dice. The reproduction commands, training configurations, per-experiment table, and error JSON files remain in the repository and are unchanged by this revision.
+
+The centre conclusion is unchanged in mechanism and extended in scope. Native pixels and metric-aligned validation produced the $0.93024$ entry and remain necessary. They are no longer sufficient: the teacher/hard family is within $0.0018$ of its clean-validation oracle, and frozen semantic embeddings add nothing. The next improvement must reallocate probability inside small and low-contrast edits, which is what the boundary-aware refiner is designed to test.
 \end{document}

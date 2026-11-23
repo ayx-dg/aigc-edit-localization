@@ -1,0 +1,138 @@
+\documentclass[10pt]{beamer}
+\usetheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}{\hfill\insertframenumber/\inserttotalframenumber\hspace{.3cm}\vskip.1cm}
+\setbeamersize{text margin left=.6cm,text margin right=.6cm}
+\usepackage{booktabs,amsmath,graphicx}
+\graphicspath{{../report/figures/}}
+\title{What Drives Performance in AIGC Edited-Region Localization?}
+\subtitle{Progress and next experiment}
+\author{SparseViT experiments and the native-resolution pipeline}
+\date{November 2026}
+\begin{document}
+
+\begin{frame}
+\titlepage
+\begin{center}
+\small
+Canonical Kaggle Score \textbf{0.93024} (ref 58747907) \quad · \quad
+Top-3 cutoff \textbf{0.95843} \quad · \quad Gap \textbf{0.02819}
+\end{center}
+\end{frame}
+
+\begin{frame}{What works: native pixels and metric-aligned selection}
+\begin{columns}[T]
+\column{.48\textwidth}
+\small
+\begin{itemize}
+\item Historical native-crop U-Net: \textbf{0.92213} (ref 58415875)
+\item SparseViT, whole image downscaled: 0.65764
+\item SparseViT, native $512\times512$ patches: 0.77279
+\item Global/native ensemble (0.4/0.6): 0.80870
+\item Teacher+hard fusion, TTA8/ov64: \textbf{0.93024}
+\end{itemize}
+\vspace{.2cm}
+Encoder choice is second-order; crop resolution and checkpoint selection dominate.
+\column{.50\textwidth}
+\footnotesize
+\begin{tabular}{lrr}
+\toprule Version & Threshold & Score \\
+\midrule
+v1 global cache & 0.20 & 0.65764 \\
+v2 global sliding & 0.16 & 0.61291 \\
+v3 native patches & 0.86 & 0.77279 \\
+v4 equal average & 0.48 & 0.80113 \\
+v5 weighted average & 0.59 & 0.80870 \\
+final fusion & 0.92/0.38 & 0.93024 \\
+\bottomrule
+\end{tabular}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Residual errors are local}
+\begin{columns}[T]
+\column{.38\textwidth}
+\centering\includegraphics[width=\linewidth]{fig_val_errors}
+\smallskip
+
+\scriptsize Worst validation images: GT green, prediction red.
+\column{.60\textwidth}
+\scriptsize
+GT has 4.22 components/image; the global model predicts 1.83 with a median size over twice as large.
+\vspace{.15cm}
+
+\begin{tabular}{lrr}
+\toprule GT edited area & Images & Mean Score \\
+\midrule
+$0$--$0.1\%$ & 3 & 0.3115 \\
+$0.1$--$1\%$ & 85 & 0.6587 \\
+$1$--$5\%$ & 168 & 0.7757 \\
+$>5\%$ & 244 & 0.8746 \\
+\bottomrule
+\end{tabular}
+\vspace{.15cm}
+
+Worst clean-validation cases:
+\begin{tabular}{lrr}
+\toprule ID & Score & Oracle \\
+\midrule
+003549 & 0.7063 & 0.803 \\
+003560 & 0.7781 & 0.724 \\
+004315 & 0.7793 & 0.804 \\
+003501 & 0.7870 & 0.839 \\
+\bottomrule
+\end{tabular}
+\vspace{.1cm}
+
+For 003549, probability is 0.654 on GT pixels and 0.001 on background.
+\end{columns}
+\end{frame}
+
+\begin{frame}{The current family is saturated; DINO does not help}
+\begin{columns}[T]
+\column{.50\textwidth}
+\small
+Clean-validation oracle (56 images):
+\begin{tabular}{lr}
+\toprule Rule & Score \\
+\midrule
+Teacher + hysteresis & 0.95008 \\
+Hard + hysteresis & 0.93977 \\
+Current fusion & 0.95314 \\
+Oracle per-pixel & 0.95493 \\
+\bottomrule
+\end{tabular}
+\vspace{.1cm}
+Headroom inside this family: \textbf{0.0018}. Hysteresis sweeps, component filtering, TTA16, 640px tiles, and pseudo-label v2 all stayed at $\le 0.95314$.
+\column{.48\textwidth}
+\small
+DINOv2-S/14 on 448 patches:
+\begin{tabular}{lr}
+\toprule Variant & Score \\
+\midrule
+Standalone DINO-HF & 0.46513 \\
+Frozen DINO probe & 0.47829 \\
+DINO-injected teacher & 0.90527 \\
+Teacher baseline & 0.90953 \\
+\bottomrule
+\end{tabular}
+\vspace{.1cm}
+Frozen semantic tokens add no localisation signal. Stop this direction.
+\end{columns}
+\end{frame}
+
+\begin{frame}{Next experiment and promotion gates}
+\small
+The historical checkpoint reproduces the teacher cache exactly (MAD 0), and cached masks are true GT. A width-16 U-Net refines the teacher probability from RGB, FFT/Sobel high-frequency maps, and probability edges on 9000 native patches with true labels. The refined map replaces the teacher term in the unchanged 0.4/0.6 fusion.
+\vspace{.2cm}
+\begin{enumerate}
+\item Patch validation Score $> 0.90953$
+\item Clean-validation fusion Score $> 0.953140$
+\item Two-column RLE dry-run passes; submit only through GitHub Action
+\item Canonical changes only after Kaggle confirms Score $> 0.93024$
+\end{enumerate}
+\vspace{.15cm}
+\textbf{Conclusion.} Native pixels and full-image validation produced 0.93024; the next gain must reallocate probability inside small, low-contrast edits.
+\end{frame}
+
+\end{document}
