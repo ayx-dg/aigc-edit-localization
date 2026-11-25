@@ -121,7 +121,7 @@ Frozen semantic tokens add no localisation signal. Stop this direction.
 \end{columns}
 \end{frame}
 
-\begin{frame}{Next experiment and promotion gates}
+\begin{frame}{Refiner experiment: negative result}
 \small
 The historical checkpoint reproduces the teacher cache exactly (MAD 0), and cached masks are true GT. A width-16 U-Net refines the teacher probability from RGB, FFT/Sobel high-frequency maps, and probability edges on 9000 native patches with true labels. The refined map replaces the teacher term in the unchanged 0.4/0.6 fusion.
 \vspace{.2cm}
@@ -131,8 +131,11 @@ The historical checkpoint reproduces the teacher cache exactly (MAD 0), and cach
 \item Two-column RLE dry-run passes; submit only through GitHub Action
 \item Canonical changes only after Kaggle confirms Score $> 0.93024$
 \end{enumerate}
-\vspace{.15cm}
-\textbf{Conclusion.} Native pixels and full-image validation produced 0.93024; the next gain must reallocate probability inside small, low-contrast edits.
+\vspace{.1cm}
+\textbf{Result.} Residual refiner ties teacher on an 80-image smoke ($+10^{-5}$) but scores $0.928925 < 0.928931$ on all 500 validation images: gate fails, so no full training and no submission.
+
+\vspace{.1cm}
+\textbf{Conclusion.} Native pixels and full-image validation produced 0.93024; the next gain must reallocate probability inside small, low-contrast edits, which the refiner failed to deliver.
 \end{frame}
 
 \end{document}
