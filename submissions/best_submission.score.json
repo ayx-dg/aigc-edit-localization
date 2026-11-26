@@ -1,7 +1,7 @@
 {
-  "score": 0.93024,
+  "score": 0.94005,
   "source": "kaggle_candidate_action",
-  "ref": "58747907",
-  "sha256": "26c913e19d24843d1ac7e09445d73b5a494a80323f586686888022bc310cec15",
+  "ref": "58928971",
+  "sha256": "07e82e44b88b0e9e0c23ad5eaf27f4e1c5496dd4c24d37b3bd6db951e82905de",
   "note": "Score of the CSV currently in best_submission.csv."
 }
