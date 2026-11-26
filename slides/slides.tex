@@ -15,8 +15,8 @@
 \titlepage
 \begin{center}
 \small
-Canonical Kaggle Score \textbf{0.93024} (ref 58747907) \quad · \quad
-Top-3 cutoff \textbf{0.95843} \quad · \quad Gap \textbf{0.02819}
+Canonical Kaggle Score \textbf{0.94005} (ref 58928971) \quad · \quad
+Top-3 cutoff \textbf{0.95843} \quad · \quad Gap \textbf{0.01838}
 \end{center}
 \end{frame}
 
@@ -29,10 +29,11 @@ Top-3 cutoff \textbf{0.95843} \quad · \quad Gap \textbf{0.02819}
 \item SparseViT, whole image downscaled: 0.65764
 \item SparseViT, native $512\times512$ patches: 0.77279
 \item Global/native ensemble (0.4/0.6): 0.80870
-\item Teacher+hard fusion, TTA8/ov64: \textbf{0.93024}
+\item Teacher+hard fusion, TTA8/ov64: 0.93024
+\item Mesorch+hard fusion + consensus gate: \textbf{0.94005}
 \end{itemize}
 \vspace{.2cm}
-Encoder choice is second-order; crop resolution and checkpoint selection dominate.
+Native pixels and checkpoint selection dominate; a second architecture adds complementary signal.
 \column{.50\textwidth}
 \footnotesize
 \begin{tabular}{lrr}
@@ -44,6 +45,7 @@ v3 native patches & 0.86 & 0.77279 \\
 v4 equal average & 0.48 & 0.80113 \\
 v5 weighted average & 0.59 & 0.80870 \\
 final fusion & 0.92/0.38 & 0.93024 \\
+canonical & 0.92/0.38 + gate & \textbf{0.94005} \\
 \bottomrule
 \end{tabular}
 \end{columns}
@@ -121,6 +123,50 @@ Frozen semantic tokens add no localisation signal. Stop this direction.
 \end{columns}
 \end{frame}
 
+\begin{frame}{A complementary architecture: Mesorch-PT}
+\small
+Mesorch (AAAI'25) = DCT high-frequency CNN branch + low-frequency transformer branch, eight decoded scales and learned pixel-wise weighting. We reimplemented the paper's modules; the local encoder is standard ImageNet-1K ConvNeXt-Tiny (31.17M parameters), no author code or weights.
+\vspace{.15cm}
+\begin{columns}[T]
+\column{.48\textwidth}\footnotesize
+\begin{itemize}
+\item Smoke 800/160 patches: 0.813 vs 0.37 from scratch
+\item Full 20000 steps: patch-val \textbf{0.90983} (teacher 0.92052)
+\item Clean-val standalone \textbf{0.94712} (teacher 0.93914)
+\item Mesorch + hard, equal weights: \textbf{0.95516}
+\end{itemize}
+\column{.50\textwidth}\footnotesize
+Same-protocol teacher+hard baseline: 0.94472. Three-way fusion with teacher adds nothing. Consensus gate reverts extreme Mesorch disagreements to the old fusion (0/56 val, 2/500 test).
+\vspace{.1cm}
+
+Kaggle: \textbf{0.94005} (ref 58928971), $+0.00981$ over previous canonical.
+\end{columns}
+\end{frame}
+
+\begin{frame}{Boundary errors are ambiguous, not misaligned}
+\small
+\begin{columns}[T]
+\column{.48\textwidth}\footnotesize
+Misclassified boundary pixels have lower image gradient ($0.0454$) than correct boundaries ($0.0526$): errors lie in low-contrast, feathered edits, not at displaced strong edges.
+\vspace{.1cm}
+
+Worst-case overlays: green TP, red FP, blue FN; dominant error is missed edited pixels.
+\column{.50\textwidth}\footnotesize
+\begin{tabular}{lr}
+\toprule Method & Clean-val Score \\
+\midrule
+Mesorch+hard fusion & 0.95516 \\
+Gaussian $\sigma=0.5$ / $2$ & 0.95430 / 0.94351 \\
+Bilateral filtering & 0.94504--0.94687 \\
+Hysteresis sweep best & 0.95603 \\
+Full-resolution probs & 0.95219 \\
+\bottomrule
+\end{tabular}
+\vspace{.1cm}
+Smoothing, CRF-style filters and full-resolution probabilities do not help; remaining uncertainty is intrinsic.
+\end{columns}
+\end{frame}
+
 \begin{frame}{Refiner experiment: negative result}
 \small
 The historical checkpoint reproduces the teacher cache exactly (MAD 0), and cached masks are true GT. A width-16 U-Net refines the teacher probability from RGB, FFT/Sobel high-frequency maps, and probability edges on 9000 native patches with true labels. The refined map replaces the teacher term in the unchanged 0.4/0.6 fusion.
@@ -129,13 +175,13 @@ The historical checkpoint reproduces the teacher cache exactly (MAD 0), and cach
 \item Patch validation Score $> 0.90953$
 \item Clean-validation fusion Score $> 0.953140$
 \item Two-column RLE dry-run passes; submit only through GitHub Action
-\item Canonical changes only after Kaggle confirms Score $> 0.93024$
+\item Canonical changes only after Kaggle confirms Score $> 0.93024$ (gate at that time)
 \end{enumerate}
 \vspace{.1cm}
 \textbf{Result.} Residual refiner ties teacher on an 80-image smoke ($+10^{-5}$) but scores $0.928925 < 0.928931$ on all 500 validation images: gate fails, so no full training and no submission.
 
 \vspace{.1cm}
-\textbf{Conclusion.} Native pixels and full-image validation produced 0.93024; the next gain must reallocate probability inside small, low-contrast edits, which the refiner failed to deliver.
+\textbf{Conclusion.} The teacher/hard family was saturated; a second learned architecture delivered the confirmed gain to 0.94005. Postprocessing does not help, so further progress needs stronger or more diverse learned signals.
 \end{frame}
 
 \end{document}
